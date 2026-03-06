@@ -4,7 +4,29 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>POLITIÉKOPOLY – Online Multiplayer</title>
-<script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+<script>
+// Load Ably with fallback CDNs
+(function(){
+  function loadScript(src, cb, fallback) {
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload = cb;
+    s.onerror = fallback || function(){};
+    document.head.appendChild(s);
+  }
+  loadScript(
+    'https://cdn.ably.com/lib/ably.min-2.js',
+    function(){},
+    function(){
+      loadScript(
+        'https://cdnjs.cloudflare.com/ajax/libs/ably/2.3.1/ably.min.js',
+        function(){},
+        function(){ document.getElementById('ablyErr').style.display='block'; }
+      );
+    }
+  );
+})();
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Boogaloo&family=Nunito:wght@400;700;800&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -315,6 +337,7 @@ body{font-family:'Nunito',sans-serif;background:#1a5c30;background-image:repeati
   </div>
 </div>
 
+<div id="ablyErr" style="display:none;position:fixed;top:0;left:0;right:0;background:#C62828;color:#fff;font-family:Nunito,sans-serif;font-size:13px;font-weight:700;padding:10px;text-align:center;z-index:999">Ably kon niet laden. Herlaad de pagina.</div>
 <div class="toast" id="toast"></div>
 <div class="connstatus cok" id="connSt">🟢 Verbonden</div>
 
@@ -499,12 +522,19 @@ function rndCode(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ';return Array.from({length:
 // ABLY
 // ═══════════════════════════════════════════
 function connectAbly(cb){
-  try{
-    ably=new Ably.Realtime({key:ABLY_KEY,clientId:ME.id});
-    ably.connection.on('connected',()=>{setConn(true);cb();});
-    ably.connection.on('disconnected',()=>setConn(false));
-    ably.connection.on('failed',()=>{setConn(false);setErr('Verbinding mislukt. Controleer je API-key (ably.com).');});
-  }catch(e){setErr('Ably niet geladen. Controleer je internetverbinding.');}
+  function tryConnect(){
+    if(typeof Ably === "undefined"){
+      setTimeout(tryConnect, 200);
+      return;
+    }
+    try{
+      ably=new Ably.Realtime({key:ABLY_KEY,clientId:ME.id});
+      ably.connection.on("connected",()=>{setConn(true);cb();});
+      ably.connection.on("disconnected",()=>setConn(false));
+      ably.connection.on("failed",()=>{setConn(false);setErr("Verbinding mislukt. Probeer opnieuw.");});
+    }catch(e){setErr("Ably niet beschikbaar: "+e.message);}
+  }
+  tryConnect();
 }
 
 function setConn(ok){const el=document.getElementById('connSt');el.textContent=ok?'🟢 Verbonden':'🔴 Offline';el.className='connstatus '+(ok?'cok':'cerr');}
