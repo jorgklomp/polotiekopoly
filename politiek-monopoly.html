@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>POLITIÉKOPOLY – Multiplayer</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Boogaloo&family=Nunito:wght@400;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Nunito',sans-serif;background:#1a5c30;background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.05) 0,rgba(0,0,0,.05) 1px,transparent 1px,transparent 12px),repeating-linear-gradient(-45deg,rgba(0,0,0,.05) 0,rgba(0,0,0,.05) 1px,transparent 1px,transparent 12px);min-height:100vh;}
+
+/* SCREENS */
+.screen{display:none!important;}.screen.active{display:flex!important;}
+#setup.active{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:16px;width:100%;}
+#game.active{flex-direction:column;align-items:center;padding:8px;gap:8px;min-height:100vh;width:100%;}
+#results.active{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:16px;width:100%;}
+
+/* SETUP */
+.setup-box{background:#F5F0DC;border:7px solid #5D4037;border-radius:14px;max-width:520px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+.setup-top{background:linear-gradient(135deg,#1A237E,#283593);padding:22px 20px 14px;text-align:center;border-bottom:5px solid #F9A825;}
+.gtitle{font-family:'Boogaloo',cursive;font-size:clamp(38px,9vw,64px);color:#F5F0DC;line-height:.88;text-shadow:3px 3px 0 rgba(0,0,0,.4);}
+.gtitle span{color:#F9A825;}
+.gsub{font-family:'Boogaloo',cursive;font-size:13px;color:rgba(255,255,255,.55);margin-top:6px;}
+.setup-body{padding:20px;}
+.slabel{font-family:'Boogaloo',cursive;font-size:16px;color:#5D4037;margin-bottom:9px;}
+.ssec{margin-bottom:16px;}
+.pcbtns{display:flex;gap:7px;}
+.pcbtn{flex:1;background:#fff;border:3px solid #ccc;border-radius:8px;padding:9px 4px;font-family:'Boogaloo',cursive;font-size:19px;cursor:pointer;transition:all .15s;color:#555;line-height:1.3;}
+.pcbtn:hover{border-color:#1A237E;background:#E8EAF6;}
+.pcbtn.sel{border-color:#1A237E;background:#1A237E;color:#fff;box-shadow:0 3px 0 #0d1160;}
+.prows{display:flex;flex-direction:column;gap:7px;}
+.prow{display:flex;align-items:center;gap:9px;background:rgba(0,0,0,.04);border:1.5px solid rgba(0,0,0,.08);border-radius:9px;padding:9px 11px;}
+.ppawn{font-size:24px;}
+.pinput{flex:1;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;border:2px solid #ddd;border-radius:6px;padding:6px 9px;outline:none;transition:border-color .15s;}
+.pinput:focus{border-color:#1A237E;}
+.pdot{width:16px;height:16px;border-radius:50%;border:2px solid rgba(0,0,0,.18);flex-shrink:0;}
+.btnstart{width:100%;background:linear-gradient(180deg,#F9A825,#E65100);color:#fff;font-family:'Boogaloo',cursive;font-size:24px;letter-spacing:2px;padding:14px;border:3px solid #b34700;border-radius:8px;cursor:pointer;box-shadow:0 4px 0 #7a3000;transition:transform .1s,box-shadow .1s;text-transform:uppercase;}
+.btnstart:hover{transform:translateY(-2px);box-shadow:0 6px 0 #7a3000;}
+.btnstart:active{transform:translateY(2px);box-shadow:0 1px 0 #7a3000;}
+
+/* HUD */
+.hud{width:100%;max-width:920px;display:flex;gap:5px;flex-wrap:nowrap;overflow-x:auto;}
+.hudp{background:#F5F0DC;border:3px solid #5D4037;border-radius:7px;padding:5px 9px;flex:1;min-width:110px;box-shadow:2px 2px 0 #5D4037;position:relative;overflow:hidden;transition:all .2s;}
+.hudp.cur{background:#FFFDE7;border-color:#F9A825;box-shadow:3px 3px 0 #b34700,0 0 10px rgba(249,168,37,.35);}
+.hudp.cur::after{content:'▶';position:absolute;top:3px;right:5px;font-size:9px;color:#F9A825;}
+.hptop{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
+.hppawn{font-size:18px;}
+.hpname{font-family:'Boogaloo',cursive;font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hpmoney{font-family:'Boogaloo',cursive;font-size:15px;color:#1B5E20;white-space:nowrap;}
+.hpsub{font-size:9px;color:#888;font-weight:700;margin-bottom:3px;}
+.hpms{display:flex;gap:2px;}
+.hpm{display:flex;align-items:center;gap:2px;font-size:9px;font-weight:800;}
+.hpmb{width:22px;height:4px;background:rgba(0,0,0,.1);border-radius:2px;overflow:hidden;}
+.hpmf{height:100%;border-radius:2px;transition:width .4s ease;}
+
+/* BOARD — true 11×11 CSS grid */
+.board{
+  background:#F5F0DC;border:5px solid #5D4037;border-radius:8px;
+  box-shadow:0 12px 40px rgba(0,0,0,.65);
+  width:100%;max-width:920px;
+  display:grid;
+  grid-template-columns: 88px repeat(9,1fr) 88px;
+  grid-template-rows:    88px repeat(9,1fr) 88px;
+  position:relative;overflow:hidden;
+}
+
+/* CENTER */
+.bcenter{
+  grid-column:2/11;grid-row:2/11;
+  background:linear-gradient(135deg,#e8f5e9 0%,#f5f0dc 45%,#e8eaf6 100%);
+  border:1px solid rgba(0,0,0,.08);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:9px;padding:12px;
+}
+.clogo{font-family:'Boogaloo',cursive;font-size:clamp(14px,2.6vw,28px);color:#1A237E;text-align:center;line-height:1;}
+.clogo span{color:#C62828;}
+.cbanner{background:#1A237E;color:#fff;font-family:'Boogaloo',cursive;font-size:clamp(11px,1.7vw,16px);padding:5px 14px;border-radius:18px;border:2px solid #F9A825;text-align:center;white-space:nowrap;}
+.drow{display:flex;gap:8px;}
+.die{width:42px;height:42px;background:#fff;border:3px solid #5D4037;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:23px;box-shadow:2px 2px 0 #5D4037;}
+.die.roll{animation:dr .5s ease;}
+@keyframes dr{0%{transform:rotate(0)scale(1)}25%{transform:rotate(90deg)scale(1.2)}50%{transform:rotate(180deg)scale(.8)}75%{transform:rotate(270deg)scale(1.2)}100%{transform:rotate(360deg)scale(1)}}
+.btnroll{background:linear-gradient(180deg,#F44336,#C62828);color:#fff;font-family:'Boogaloo',cursive;font-size:16px;letter-spacing:1px;padding:8px 20px;border:3px solid #7f0000;border-radius:7px;cursor:pointer;box-shadow:0 4px 0 #4a0000;transition:transform .1s,box-shadow .1s;text-transform:uppercase;}
+.btnroll:hover{transform:translateY(-2px);box-shadow:0 6px 0 #4a0000;}
+.btnroll:active{transform:translateY(2px);box-shadow:0 1px 0 #4a0000;}
+.btnroll:disabled{opacity:.35;cursor:not-allowed;transform:none!important;box-shadow:0 4px 0 #4a0000!important;}
+.crow{display:flex;gap:7px;}
+.cstk{width:50px;height:33px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;text-align:center;border:2px solid rgba(0,0,0,.2);position:relative;text-transform:uppercase;line-height:1.2;}
+.cstk::before,.cstk::after{content:'';position:absolute;inset:0;border-radius:4px;border:2px solid rgba(0,0,0,.1);}
+.cstk::before{transform:translate(-3px,-3px);}.cstk::after{transform:translate(-5px,-5px);}
+.ck{background:#FFF9C4;color:#5D4037;}.cs{background:#E3F2FD;color:#1A237E;}
+
+/* SQUARES base */
+.sq{position:relative;background:#F5F0DC;border:1px solid rgba(0,0,0,.17);overflow:hidden;display:flex;min-width:0;min-height:0;}
+
+/* CORNER */
+.sq.corn{flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px;background:#ECE7CC;}
+.sq.corn .ico{font-size:clamp(16px,2.3vw,26px);}
+.sq.corn .nm{font-size:clamp(5px,.7vw,8px);font-weight:800;text-align:center;text-transform:uppercase;line-height:1.2;color:#333;}
+
+/* BOT ROW — bar top, content bottom-aligned */
+.sq.bot{flex-direction:column;align-items:center;justify-content:flex-end;padding:2px 1px 3px;}
+.sq.bot .bar{position:absolute;top:0;left:0;right:0;height:9px;}
+.sq.bot .ico{font-size:clamp(10px,1.35vw,16px);line-height:1;display:block;text-align:center;}
+.sq.bot .nm{font-size:clamp(4.5px,.62vw,7px);font-weight:800;text-align:center;line-height:1.15;text-transform:uppercase;color:#222;}
+
+/* TOP ROW — bar bottom, content top-aligned */
+.sq.top{flex-direction:column;align-items:center;justify-content:flex-start;padding:3px 1px 2px;}
+.sq.top .bar{position:absolute;bottom:0;left:0;right:0;height:9px;}
+.sq.top .ico{font-size:clamp(10px,1.35vw,16px);line-height:1;display:block;text-align:center;}
+.sq.top .nm{font-size:clamp(4.5px,.62vw,7px);font-weight:800;text-align:center;line-height:1.15;text-transform:uppercase;color:#222;}
+
+/* RIGHT COL — bar left, content right-padded */
+.sq.rgt{flex-direction:row-reverse;align-items:center;padding:2px 3px;}
+.sq.rgt .bar{position:absolute;left:0;top:0;bottom:0;width:9px;height:auto;}
+.sq.rgt .sin{display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;padding-left:11px;}
+.sq.rgt .ico{font-size:clamp(10px,1.35vw,16px);line-height:1;text-align:center;}
+.sq.rgt .nm{font-size:clamp(4.5px,.62vw,7px);font-weight:800;text-align:center;line-height:1.15;text-transform:uppercase;color:#222;}
+
+/* LEFT COL — bar right, content left-padded */
+.sq.lft{flex-direction:row;align-items:center;padding:2px 3px;}
+.sq.lft .bar{position:absolute;right:0;top:0;bottom:0;width:9px;height:auto;}
+.sq.lft .sin{display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;padding-right:11px;}
+.sq.lft .ico{font-size:clamp(10px,1.35vw,16px);line-height:1;text-align:center;}
+.sq.lft .nm{font-size:clamp(4.5px,.62vw,7px);font-weight:800;text-align:center;line-height:1.15;text-transform:uppercase;color:#222;}
+
+/* type tints */
+.sq.tkans{background:#FFFDE7;}.sq.tkas{background:#E8EAF6;}.sq.ttax{background:#FFF3E0;}.sq.tbonus{background:#E8F5E9;}
+
+/* highlight */
+.sq.hl{outline:3px solid #F9A825;outline-offset:-2px;z-index:6;}
+.sq.pop{animation:sqp .35s cubic-bezier(.34,1.56,.64,1);}
+@keyframes sqp{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+
+/* tokens */
+.ptok{position:absolute;bottom:1px;left:0;right:0;display:flex;flex-wrap:wrap;justify-content:center;gap:1px;z-index:4;pointer-events:none;}
+.pt{font-size:clamp(8px,1vw,13px);line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));}
+
+/* MODALS */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:300;display:none;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(5px);}
+.ov.show{display:flex;}
+.modal{background:#F5F0DC;border:5px solid #5D4037;border-radius:12px;max-width:450px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7);animation:mpop .3s cubic-bezier(.34,1.56,.64,1);}
+.msc{max-height:88vh;overflow-y:auto;}
+@keyframes mpop{from{transform:scale(.6)rotate(-3deg);opacity:0}to{transform:scale(1)rotate(0);opacity:1}}
+.mhdr{padding:13px 15px 9px;text-align:center;border-bottom:3px solid #5D4037;}
+.mwho{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;opacity:.55;margin-bottom:3px;}
+.mcat{font-size:9px;font-weight:800;letter-spacing:3px;text-transform:uppercase;opacity:.4;margin-bottom:3px;}
+.mico{font-size:42px;display:block;margin-bottom:4px;}
+.mtit{font-family:'Boogaloo',cursive;font-size:21px;color:#111;line-height:1.1;}
+.mbody{padding:11px 14px;}
+.mdesc{font-size:13px;color:#333;line-height:1.6;margin-bottom:11px;border-left:4px solid #F9A825;padding-left:9px;}
+.choices{display:flex;flex-direction:column;gap:7px;}
+.ch{background:#fff;border:2.5px solid rgba(0,0,0,.12);border-radius:7px;padding:10px 11px;cursor:pointer;transition:all .15s;text-align:left;}
+.ch:hover{border-color:#1A237E;transform:translateX(3px);box-shadow:-3px 0 0 #1A237E;}
+.clbl{font-family:'Boogaloo',cursive;font-size:15px;color:#111;margin-bottom:2px;}
+.ctxt{font-size:11.5px;color:#555;line-height:1.45;}
+.bgs{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px;}
+.bg{font-size:9.5px;font-weight:800;padding:2px 5px;border-radius:3px;border:1px solid rgba(0,0,0,.11);}
+.bgp{background:#E8F5E9;color:#1B5E20;}.bgn{background:#FFEBEE;color:#B71C1C;}
+.fbhdr{text-align:center;padding:15px 14px 9px;border-bottom:3px solid #5D4037;}
+.fbico{font-size:54px;display:block;margin-bottom:5px;animation:bp .4s cubic-bezier(.34,1.56,.64,1);}
+@keyframes bp{from{transform:scale(0)}to{transform:scale(1)}}
+.fbtit{font-family:'Boogaloo',cursive;font-size:21px;color:#111;}
+.fbbody{padding:11px 14px;}
+.fbtxt{font-size:13px;color:#333;line-height:1.6;margin-bottom:9px;}
+.mcv{font-family:'Boogaloo',cursive;font-size:19px;text-align:center;margin-bottom:7px;}
+.mcv.g{color:#1B5E20;}.mcv.l{color:#C62828;}
+.mchg{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-bottom:11px;}
+.mc{background:rgba(0,0,0,.05);border-radius:4px;padding:4px 2px;text-align:center;font-size:9.5px;font-weight:800;}
+.mc .mv{font-size:12px;font-family:'Boogaloo',cursive;}
+.btncont{width:100%;background:linear-gradient(180deg,#1565C0,#1A237E);color:#fff;font-family:'Boogaloo',cursive;font-size:17px;letter-spacing:1px;padding:11px;border:3px solid #0d1160;border-radius:7px;cursor:pointer;box-shadow:0 4px 0 #06093a;transition:transform .1s,box-shadow .1s;text-transform:uppercase;}
+.btncont:hover{transform:translateY(-2px);box-shadow:0 6px 0 #06093a;}
+.kh{background:#FFF9C4!important;}.sh{background:#E3F2FD!important;}
+
+/* RESULTS */
+.resbox{background:#F5F0DC;border:6px solid #5D4037;border-radius:12px;max-width:500px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.65);}
+.restop{background:linear-gradient(135deg,#1A237E,#283593);padding:18px;text-align:center;border-bottom:5px solid #F9A825;}
+.resbig{font-size:64px;display:block;animation:spin .6s ease;}
+@keyframes spin{from{transform:rotate(-180deg)scale(0)}to{transform:rotate(0)scale(1)}}
+.restitle{font-family:'Boogaloo',cursive;font-size:32px;color:#fff;margin-top:5px;}
+.ressub{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;}
+.resbody{padding:16px;}
+.lb{display:flex;flex-direction:column;gap:7px;margin-bottom:16px;}
+.lbrow{display:flex;align-items:center;gap:9px;background:rgba(0,0,0,.04);border:1.5px solid rgba(0,0,0,.09);border-radius:8px;padding:9px 11px;}
+.lbmed{font-size:20px;width:28px;text-align:center;}
+.lbpawn{font-size:24px;}
+.lbinfo{flex:1;}
+.lbname{font-family:'Boogaloo',cursive;font-size:16px;}
+.lbv{font-size:10px;color:#666;font-weight:700;}
+.lbms{display:flex;gap:3px;margin-top:3px;}
+.lbm{font-size:9.5px;font-weight:800;padding:2px 4px;background:rgba(0,0,0,.06);border-radius:3px;}
+.lbmoney{font-family:'Boogaloo',cursive;font-size:19px;color:#1B5E20;}
+.btnrestart{width:100%;background:linear-gradient(180deg,#E53935,#C62828);color:#fff;font-family:'Boogaloo',cursive;font-size:19px;letter-spacing:1px;padding:11px;border:3px solid #8B0000;border-radius:7px;cursor:pointer;box-shadow:0 4px 0 #5a0000;transition:transform .1s,box-shadow .1s;text-transform:uppercase;}
+.btnrestart:hover{transform:translateY(-2px);box-shadow:0 6px 0 #5a0000;}
+
+/* TOAST */
+.toast{position:fixed;top:12px;left:50%;transform:translateX(-50%)translateY(-65px);background:#1A237E;color:#fff;font-family:'Boogaloo',cursive;font-size:14px;padding:8px 18px;border-radius:22px;border:2px solid rgba(255,255,255,.2);z-index:500;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.45);}
+.toast.show{transform:translateX(-50%)translateY(0);}
+
+@media(max-width:600px){
+  .board{grid-template-columns:62px repeat(9,1fr) 62px;grid-template-rows:62px repeat(9,1fr) 62px;}
+  .hudp{min-width:80px;}.hpms{display:none;}
+}
+</style>
+</head>
+<body>
+
+<div id="setup" class="screen active">
+  <div class="setup-box">
+    <div class="setup-top">
+      <div class="gtitle">POLITIEK<span>OPOLY</span></div>
+      <div class="gsub">🏛️ Multiplayer Editie · 2–4 Spelers · 40 Vakjes</div>
+    </div>
+    <div class="setup-body">
+      <div class="ssec">
+        <div class="slabel">👥 Aantal spelers:</div>
+        <div class="pcbtns">
+          <button class="pcbtn" onclick="setN(2)">2️⃣<br><small>Duo</small></button>
+          <button class="pcbtn sel" onclick="setN(3)">3️⃣<br><small>Trio</small></button>
+          <button class="pcbtn" onclick="setN(4)">4️⃣<br><small>Kwartet</small></button>
+        </div>
+      </div>
+      <div class="ssec">
+        <div class="slabel">🎮 Spelersnamen:</div>
+        <div class="prows" id="prows"></div>
+      </div>
+      <button class="btnstart" onclick="startGame()">🎲 SPEL STARTEN!</button>
+    </div>
+  </div>
+</div>
+
+<div id="game" class="screen">
+  <div class="hud" id="hud"></div>
+  <div class="board" id="board">
+    <div class="bcenter">
+      <div class="clogo">POLITIEK<span>OPOLY</span></div>
+      <div class="cbanner" id="cbanner">Welkom!</div>
+      <div class="drow">
+        <div class="die" id="d1">⚀</div>
+        <div class="die" id="d2">⚀</div>
+      </div>
+      <button class="btnroll" id="rollBtn" onclick="rollDice()">🎲 GOOI!</button>
+      <div class="crow">
+        <div class="cstk ck">❓<br>KANS</div>
+        <div class="cstk cs">🏦<br>STAATSKAS</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="results" class="screen">
+  <div class="resbox">
+    <div class="restop">
+      <span class="resbig" id="resBig">🏆</span>
+      <div class="restitle" id="resTitle">Spel voorbij!</div>
+      <div class="ressub" id="resSub">De minister is gekozen</div>
+    </div>
+    <div class="resbody">
+      <div class="lb" id="lb"></div>
+      <button class="btnrestart" onclick="goSetup()">🔄 Nieuw spel!</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="polOv">
+  <div class="modal"><div class="msc">
+    <div class="mhdr" id="polHdr">
+      <div class="mwho" id="polWho"></div><div class="mcat" id="polCat"></div>
+      <span class="mico" id="polIco">🃏</span><div class="mtit" id="polTit"></div>
+    </div>
+    <div class="mbody"><div class="mdesc" id="polDesc"></div><div class="choices" id="polChs"></div></div>
+  </div></div>
+</div>
+
+<div class="ov" id="kkOv">
+  <div class="modal">
+    <div class="mhdr" id="kkHdr">
+      <div class="mwho" id="kkWho"></div>
+      <span class="mico" id="kkIco">❓</span><div class="mtit" id="kkTit"></div>
+    </div>
+    <div class="mbody">
+      <div class="fbtxt" id="kkTxt"></div>
+      <div class="mcv" id="kkMon"></div>
+      <button class="btncont" onclick="closeKK()">Oké, volgende! →</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="fbOv">
+  <div class="modal">
+    <div class="fbhdr"><span class="fbico" id="fbIco">😮</span><div class="fbtit" id="fbTit"></div></div>
+    <div class="fbbody">
+      <div class="fbtxt" id="fbTxt"></div>
+      <div class="mcv" id="fbMon"></div>
+      <div class="mchg" id="fbChg"></div>
+      <button class="btncont" onclick="closeFB()">Volgende speler →</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// BOARD DEFINITION  — 40 squares, no empties
+//
+// Grid layout (CSS row 1 = top, row 11 = bottom):
+//   idx  0–10  → bottom row, col 1–11  (left to right)
+//   idx 11–19  → right col,  row 10–2  (bottom to top)
+//   idx 20–30  → top row,    col 11–1  (right to left)  ← reversed visually
+//   idx 31–39  → left col,   row 2–10  (top to bottom)
+//
+// Corners:  0=START(bot-left), 10=GEVANGENIS(bot-right),
+//           20=VAKANTIE(top-right), 30=NAAR GEVANG.(top-left), 39=GRATIS PARK.(left-bot = row10)
+// Wait — left col goes row 2–10, so idx 39 is at row 10 col 1 = bottom-left of left col
+// But the bottom-left corner is idx 0 at row 11 col 1. So idx 39 at row 10 is NOT a corner.
+// The 4 corners are idx: 0, 10, 20, 30.
+// idx 39 (last square of left col) is at row 10, which is the square just above the START corner.
+// That's correct — Gratis Parkeren belongs at top-left = row 1, col 1.
+// Wait: top row goes idx 20–30, right to left (col 11→1).
+//   idx 20 = col 11 (top-right) = VAKANTIE ✓
+//   idx 30 = col 1  (top-left)  = NAAR GEVANGENIS ✓ ← but we want GRATIS PARKEREN at top-left!
+// Fix: put GRATIS PARKEREN as idx 30 (top-left) and NAAR GEVANGENIS as idx 39 end of left col.
+// But idx 39 is row 10, col 1 — not a corner position!
+//
+// CORRECT Monopoly corners (4 total):
+//   idx 0  = row 11, col 1  = bottom-left  → START
+//   idx 10 = row 11, col 11 = bottom-right → GEVANGENIS
+//   idx 20 = row 1,  col 11 = top-right    → VAKANTIE
+//   idx 30 = row 1,  col 1  = top-left     → GRATIS PARKEREN
+// Then left col (idx 31–39) goes row 2–10 → 9 squares
+// The "NAAR GEVANGENIS" square should be somewhere on the left col or as a special non-corner.
+// We'll make it a special square on the left column.
+// ══════════════════════════════════════════════════════
+
+const RAW = [
+  // BOTTOM ROW (idx 0–10): row=11, col=idx+1
+  {t:'corn', ico:'🏁', nm:'START',            col:null,       pi:-1, tax:0},   // 0
+  {t:'pol',  ico:'💰', nm:'Belasting',         col:'#2E7D32',  pi:0,  tax:0},   // 1
+  {t:'kans', ico:'❓', nm:'KANS',              col:null,       pi:-1, tax:0},   // 2
+  {t:'pol',  ico:'🏠', nm:'Soc.\nZekerheid',   col:'#2E7D32',  pi:1,  tax:0},   // 3
+  {t:'pol',  ico:'🏥', nm:'Zorg',              col:'#B71C1C',  pi:2,  tax:0},   // 4
+  {t:'tax',  ico:'🧾', nm:'BTW\n−€150',        col:null,       pi:-1, tax:150}, // 5
+  {t:'pol',  ico:'🌿', nm:'Klimaat',           col:'#006064',  pi:3,  tax:0},   // 6
+  {t:'kas',  ico:'🏦', nm:'STAATSKAS',         col:null,       pi:-1, tax:0},   // 7
+  {t:'pol',  ico:'📊', nm:'Economie',          col:'#E65100',  pi:4,  tax:0},   // 8
+  {t:'pol',  ico:'🚗', nm:'Mobiliteit',        col:'#E65100',  pi:14, tax:0},   // 9
+  {t:'corn', ico:'🔒', nm:'GEVANGENIS\nBezoek',col:null,       pi:-1, tax:0},   // 10
+
+  // RIGHT COL (idx 11–19): col=11, row = 10-(idx-11)
+  {t:'pol',  ico:'💸', nm:'Bezuiniging',       col:'#4A148C',  pi:5,  tax:0},   // 11  row 10
+  {t:'kans', ico:'❓', nm:'KANS',              col:null,       pi:-1, tax:0},   // 12  row 9
+  {t:'pol',  ico:'⚛️', nm:'Kern-\nenergie',    col:'#006064',  pi:6,  tax:0},   // 13  row 8
+  {t:'pol',  ico:'🤖', nm:'Robot-\nbelast.',   col:'#2E7D32',  pi:7,  tax:0},   // 14  row 7
+  {t:'tax',  ico:'🚨', nm:'BOETE\n−€120',      col:null,       pi:-1, tax:120}, // 15  row 6
+  {t:'pol',  ico:'🏗️', nm:'Infra-\nstruct.',   col:'#E65100',  pi:8,  tax:0},   // 16  row 5
+  {t:'kas',  ico:'🏦', nm:'STAATSKAS',         col:null,       pi:-1, tax:0},   // 17  row 4
+  {t:'pol',  ico:'🌾', nm:'Landbouw',          col:'#2E7D32',  pi:9,  tax:0},   // 18  row 3
+  {t:'bonus',ico:'💎', nm:'JACKPOT\n+€200',    col:null,       pi:-1, tax:0},   // 19  row 2
+
+  // TOP ROW (idx 20–30): row=1, col = 11-(idx-20)
+  {t:'corn', ico:'🌴', nm:'VAKANTIE\nStaatsk.',col:null,       pi:-1, tax:0},   // 20  col 11
+  {t:'pol',  ico:'💼', nm:'Werkloosh.',        col:'#E65100',  pi:10, tax:0},   // 21  col 10
+  {t:'kas',  ico:'🏦', nm:'STAATSKAS',         col:null,       pi:-1, tax:0},   // 22  col 9
+  {t:'pol',  ico:'🏡', nm:'Woning-\nnood',     col:'#B71C1C',  pi:11, tax:0},   // 23  col 8
+  {t:'kans', ico:'❓', nm:'KANS',              col:null,       pi:-1, tax:0},   // 24  col 7
+  {t:'pol',  ico:'🌍', nm:'Klimaat-\nverdrag', col:'#006064',  pi:12, tax:0},   // 25  col 6
+  {t:'tax',  ico:'💸', nm:'CRISIS!\n−€200',    col:null,       pi:-1, tax:200}, // 26  col 5
+  {t:'pol',  ico:'🧠', nm:'GGZ\nZorg',         col:'#B71C1C',  pi:13, tax:0},   // 27  col 4
+  {t:'bonus',ico:'🌟', nm:'SUBSIDIE\n+€150',   col:null,       pi:-1, tax:0},   // 28  col 3
+  {t:'pol',  ico:'🔬', nm:'Wetenschap',        col:'#006064',  pi:17, tax:0},   // 29  col 2
+  {t:'corn', ico:'🎰', nm:'GRATIS\nParkeren',  col:null,       pi:-1, tax:0},   // 30  col 1
+
+  // LEFT COL (idx 31–39): col=1, row = 2+(idx-31)
+  {t:'pol',  ico:'🎓', nm:'Onderwijs',         col:'#F9A825',  pi:15, tax:0},   // 31  row 2
+  {t:'kans', ico:'❓', nm:'KANS',              col:null,       pi:-1, tax:0},   // 32  row 3
+  {t:'pol',  ico:'⚖️', nm:'Justitie',          col:'#4A148C',  pi:16, tax:0},   // 33  row 4
+  {t:'tax',  ico:'🏧', nm:'BANK\n−€100',       col:null,       pi:-1, tax:100}, // 34  row 5
+  {t:'spec', ico:'🚓', nm:'NAAR\nGEVANG.',     col:'#C62828',  pi:-1, tax:150}, // 35  row 6
+  {t:'kas',  ico:'🏦', nm:'STAATSKAS',         col:null,       pi:-1, tax:0},   // 36  row 7
+  {t:'pol',  ico:'🛡️', nm:'Defensie',          col:'#4A148C',  pi:18, tax:0},   // 37  row 8
+  {t:'bonus',ico:'🎊', nm:'VERKIEZING\n+€250', col:null,       pi:-1, tax:0},   // 38  row 9
+  {t:'pol',  ico:'🚀', nm:'Innovatie',         col:'#1565C0',  pi:19, tax:0},   // 39  row 10
+];
+
+const SQUARES = RAW.map((s,i) => {
+  let r, c, side;
+  if (i <= 10)      { r=11; c=i+1;        side='bot'; }
+  else if (i <= 19) { r=10-(i-11); c=11;  side='rgt'; }
+  else if (i <= 30) { r=1;  c=11-(i-20);  side='top'; }
+  else              { r=2+(i-31); c=1;    side='lft'; }
+
+  let cls = 'sq ' + side;
+  if (s.t==='corn')  cls+=' corn';
+  if (s.t==='kans')  cls+=' tkans';
+  if (s.t==='kas')   cls+=' tkas';
+  if (s.t==='tax'||s.t==='spec') cls+=' ttax';
+  if (s.t==='bonus') cls+=' tbonus';
+  return {...s, idx:i, r, c, side, cls};
+});
+
+// ══════════════════════════════════════════════════════
+// POLICIES (20 cards)
+// ══════════════════════════════════════════════════════
+const POL = [
+  {id:0,cat:'💰 Belastingen',ico:'💰',tit:'Vermogensbelasting 💣',bg:'#E8F5E9',
+   desc:'Rijke Nederlanders betalen weinig over hun vermogen. Verhoog de belasting of riskeer kapitaalvlucht?',
+   c:[{lbl:'💸 Belasting verhogen',txt:'3% hogere belasting. Meer voor de schatkist maar rijken klagen.',efx:{economie:-5,welzijn:10,klimaat:0,schuld:15,populariteit:8},money:300,fb:'Meer inkomsten! Maar miljardairs verhuizen naar Monaco. 🏖️',fbi:'🏦'},
+      {lbl:'🤝 Status quo',txt:'Laat het zo. Geen kapitaalvlucht maar ongelijkheid blijft.',efx:{economie:8,welzijn:-8,klimaat:0,schuld:-5,populariteit:-10},money:-100,fb:'Rijken blijven. Critici noemen je "rijkelui-minister"! 🎩',fbi:'🎩'}]},
+  {id:1,cat:'🏠 Sociale Zekerheid',ico:'👴',tit:'AOW-Pensioen Puzzel 👴',bg:'#FFF3E0',
+   desc:'Ouderen leven langer, AOW-kosten schieten omhoog. Uitkering verhogen of pensioenleeftijd?',
+   c:[{lbl:'⬆️ AOW verhogen',txt:'€150 meer per maand. Ouderen blij maar schuld groeit.',efx:{economie:-8,welzijn:15,klimaat:0,schuld:-18,populariteit:12},money:-200,fb:'Oma en opa wekelijks naar de bingo! 🎱 Maar schuld groeit.',fbi:'👵'},
+      {lbl:'📅 Pensioenleeftijd 68',txt:'Spaart kosten maar werknemers zijn woest.',efx:{economie:10,welzijn:-12,klimaat:0,schuld:12,populariteit:-15},money:400,fb:'De bonden staken! 🪧 Staatsfinanciën verbeteren.',fbi:'😡'}]},
+  {id:2,cat:'🏥 Zorg',ico:'🩺',tit:'Zorgcrisis-Dilemma 🩺',bg:'#FCE4EC',
+   desc:'Ziekenhuizen hebben te weinig personeel. Salarissen verhogen of zorg automatiseren?',
+   c:[{lbl:'💊 Salarissen +20%',txt:'Meer personeel stroomt toe maar enorm duur.',efx:{economie:-12,welzijn:18,klimaat:0,schuld:-15,populariteit:14},money:-350,fb:'Duizenden verpleegkundigen melden zich! 👩‍⚕️ Wachtlijsten krimpen.',fbi:'👨‍⚕️'},
+      {lbl:'🤖 ZorgBot 3000',txt:'AI-assistenten voor routinetaken. Efficiënter maar kil.',efx:{economie:5,welzijn:-5,klimaat:-3,schuld:8,populariteit:-8},money:150,fb:'Patiënten verdeeld over robot-verpleegkundige. 🤖',fbi:'🤖'}]},
+  {id:3,cat:'🌿 Klimaat',ico:'🥩',tit:'Vleestaks Revolutie 🥩',bg:'#E8F5E9',
+   desc:'Vlees produceren stoot enorm veel CO2 uit. Vlees belasten of boeren subsidiëren?',
+   c:[{lbl:'🌱 Vleestaks invoeren',txt:'Vlees 40% duurder. Klimaatwinst maar boze boeren!',efx:{economie:-6,welzijn:-8,klimaat:20,schuld:10,populariteit:-12},money:200,fb:'Boeren blokkeren snelwegen! 🚜 CO2-uitstoot daalt 8%.',fbi:'🚜'},
+      {lbl:'🐄 Subsidie groene boeren',txt:'Geld voor duurzamere productie. Langzamer maar rustiger.',efx:{economie:3,welzijn:5,klimaat:8,schuld:-10,populariteit:6},money:-200,fb:'Boeren blij! 🌾 Het gaat langzaam maar zeker beter.',fbi:'🌾'}]},
+  {id:4,cat:'📊 Economie',ico:'💼',tit:'Werkloosheids Wedstrijd 💼',bg:'#FFF8E1',
+   desc:'Werkloosheid stijgt door automatisering. Uitkering verhogen of omscholing financieren?',
+   c:[{lbl:'📈 Uitkering +25%',txt:'Direct hulp maar mensen zoeken minder actief.',efx:{economie:-8,welzijn:12,klimaat:0,schuld:-12,populariteit:10},money:-250,fb:'Werklozen betalen hun huur! 🛋️ Maar economen klagen.',fbi:'🛋️'},
+      {lbl:'📚 Omscholing',txt:'Gratis omscholing naar tech en groene banen.',efx:{economie:15,welzijn:5,klimaat:5,schuld:-8,populariteit:3},money:-150,fb:"Over 2 jaar zijn het IT'ers! 🎓",fbi:'🎓'}]},
+  {id:5,cat:'🏛️ Staatsschuld',ico:'✂️',tit:'Bezuinigings Blues ✂️',bg:'#EDE7F6',
+   desc:'Staatsschuld te hoog. Hard bezuinigen op services of een staatsloterij organiseren?',
+   c:[{lbl:'✂️ Hard bezuinigen',txt:'€15 mrd bezuinigen op overheidskosten.',efx:{economie:5,welzijn:-15,klimaat:-8,schuld:25,populariteit:-18},money:600,fb:'Ambtenaren huilen! 📉 Financiële markten applaudisseren.',fbi:'📉'},
+      {lbl:'🎰 Mega Staatsloterij',txt:'Nationale loterij. Leuk maar structureel probleem blijft.',efx:{economie:3,welzijn:8,klimaat:0,schuld:5,populariteit:15},money:350,fb:'Heel Nederland koopt een lot! 🎰',fbi:'🤑'}]},
+  {id:6,cat:'🌍 Klimaat',ico:'⚛️',tit:'Kernenergie: Vriend of Vijand? ⚛️',bg:'#E0F7FA',
+   desc:'Hernieuwbare energie onvoldoende. Kerncentrale bouwen of meer windmolens plaatsen?',
+   c:[{lbl:'⚛️ Kerncentrale bouwen',txt:'Twee nieuwe centrales. Duur maar CO2-vrij.',efx:{economie:-10,welzijn:-5,klimaat:25,schuld:-20,populariteit:-10},money:-400,fb:'Demonstranten én klimaatactivisten marcheren! ☢️',fbi:'☢️'},
+      {lbl:'💨 Meer windmolens',txt:'Windparken op zee. Populair maar seizoensgebonden.',efx:{economie:3,welzijn:5,klimaat:14,schuld:-8,populariteit:12},money:-100,fb:'Nederland: windmolenland 2.0! 🌬️',fbi:'🌬️'}]},
+  {id:7,cat:'💰 Belastingen',ico:'🤖',tit:'Robot-Belasting Revolutie 🤖',bg:'#E8F5E9',
+   desc:'Robots nemen banen over. Robotbelasting invoeren of automatisering volledig omarmen?',
+   c:[{lbl:'🦾 Robot-taks',txt:'€50K per vervangen baan. Geld voor omscholing.',efx:{economie:-8,welzijn:12,klimaat:0,schuld:15,populariteit:10},money:300,fb:"Tech-CEO's woedend! 🦾 Maar arbeiders juichen.",fbi:'🦾'},
+      {lbl:'🚀 Automatisering omarmen',txt:'Sta automatisering toe, investeer in onderwijs.',efx:{economie:18,welzijn:-8,klimaat:-5,schuld:5,populariteit:-5},money:200,fb:'Nederland tech-hub! 💻',fbi:'💻'}]},
+  {id:8,cat:'🏗️ Infrastructuur',ico:'🏗️',tit:'Infrastructuur Impasse 🏗️',bg:'#FFF8E1',
+   desc:'Bruggen en wegen vervallen. Massief investeren of publiek-private samenwerking?',
+   c:[{lbl:'🔨 Massief investeren',txt:'€30 mrd voor renovatie. Duur maar noodzakelijk.',efx:{economie:-10,welzijn:8,klimaat:3,schuld:-20,populariteit:12},money:-300,fb:'Bouwbedrijven draaien overuren! 🏗️ Files dalen sterk.',fbi:'🏗️'},
+      {lbl:'🤝 Publiek-privaat',txt:'Bedrijven betalen mee. Minder controle maar goedkoper.',efx:{economie:8,welzijn:3,klimaat:0,schuld:10,populariteit:2},money:100,fb:'Sneller maar er komt tol op de snelweg. 🚗',fbi:'🛣️'}]},
+  {id:9,cat:'🌾 Landbouw',ico:'🌾',tit:'Stikstofdebat 🐄',bg:'#E8F5E9',
+   desc:'Stikstofuitstoot te hoog. Boerderijen uitkopen of strengere regels opleggen?',
+   c:[{lbl:'💰 Boerderijen uitkopen',txt:'Vrijwillige uitkoop. Duur maar effectief.',efx:{economie:-12,welzijn:5,klimaat:18,schuld:-18,populariteit:5},money:-400,fb:'Natuur herstelt! 🌿 Maar boerendochters zijn boos.',fbi:'🌿'},
+      {lbl:'📋 Strengere regels',txt:'Verplichte emissiereductie. Goedkoop maar traag.',efx:{economie:-3,welzijn:-3,klimaat:8,schuld:5,populariteit:-10},money:-100,fb:'Boeren procederen massaal! ⚖️ Stikstof daalt langzaam.',fbi:'⚖️'}]},
+  {id:10,cat:'💼 Werkgelegenheid',ico:'💼',tit:'Flex-Werk Crisis 💼',bg:'#FFF8E1',
+   desc:'Veel werknemers zitten in onzekere flex-contracten. Vaste contracten verplichten?',
+   c:[{lbl:'📜 Vast werk verplichten',txt:'Bedrijven moeten na 1 jaar vast contract geven.',efx:{economie:-8,welzijn:15,klimaat:0,schuld:0,populariteit:15},money:-150,fb:'Werknemers vieren feest! 🎉 Recruiters klagen over stijfheid.',fbi:'🎉'},
+      {lbl:'🔄 Flexibiliteit bewaren',txt:'Markt regelt het zelf. Werkgevers tevreden.',efx:{economie:10,welzijn:-10,klimaat:0,schuld:8,populariteit:-12},money:200,fb:'Economie groeit! 📈 Maar FNV organiseert staking.',fbi:'📈'}]},
+  {id:11,cat:'🏡 Woningmarkt',ico:'🏡',tit:'Woningnood Crisis 🏡',bg:'#FCE4EC',
+   desc:'Jongeren kunnen geen huis vinden. Massaal bouwen of huren bevriezen?',
+   c:[{lbl:'🏗️ Massaal bouwen',txt:'150.000 woningen erbij. Natuur betaalt de prijs.',efx:{economie:8,welzijn:10,klimaat:-15,schuld:-18,populariteit:8},money:-200,fb:'Starters juichen! 🎉 Milieuactivisten protesteren op de Veluwe.',fbi:'🏗️'},
+      {lbl:'🧊 Huurbevriezing',txt:'Huren mogen niet stijgen. Huurders blij maar bouw stopt.',efx:{economie:-8,welzijn:12,klimaat:3,schuld:0,populariteit:10},money:-100,fb:'Huurders ademen! 😮‍💨 Maar verhuurders stoppen met investeren.',fbi:'🧊'}]},
+  {id:12,cat:'🌍 Klimaat',ico:'🌍',tit:'Klimaatverdrag Dilemma 🌍',bg:'#E0F7FA',
+   desc:'Nieuw internationaal klimaatverdrag. Tekenen = strenge regels. Niet tekenen = kritiek.',
+   c:[{lbl:'✍️ Verdrag tekenen',txt:'Strengere CO2-regels. Industrie protesteert maar klimaat wint.',efx:{economie:-8,welzijn:5,klimaat:22,schuld:0,populariteit:5},money:-100,fb:'Nederland loopt voorop! 🌍 Maar industrie dreigt te vertrekken.',fbi:'🌱'},
+      {lbl:'🙅 Niet tekenen',txt:'Industrie blijft. Maar internationaal gezichtsverlies.',efx:{economie:10,welzijn:-5,klimaat:-10,schuld:10,populariteit:-8},money:200,fb:'Industrie blij! 🏭 Maar de EU is woedend.',fbi:'😤'}]},
+  {id:13,cat:'🏥 GGZ Zorg',ico:'🧠',tit:'Mentale Gezondheidscrisis 🧠',bg:'#FCE4EC',
+   desc:'Wachtlijsten GGZ zijn 2 jaar lang. Massief investeren of psychologen verplichten?',
+   c:[{lbl:'💰 Massief investeren',txt:'€2 mrd extra voor GGZ. Wachtlijsten worden korter.',efx:{economie:-10,welzijn:20,klimaat:0,schuld:-16,populariteit:14},money:-350,fb:'Wachtlijsten halveren in 18 maanden! 🧠',fbi:'❤️‍🩹'},
+      {lbl:'📋 Verplichte dienst',txt:'Psychologen werken 3 jaar publiek.',efx:{economie:0,welzijn:8,klimaat:0,schuld:5,populariteit:-8},money:100,fb:'Meer capaciteit! Maar psychologen emigreren naar België. 🇧🇪',fbi:'😬'}]},
+  {id:14,cat:'🚗 Mobiliteit',ico:'🚆',tit:'Mobiliteitsrevolutie 🚆',bg:'#FFF8E1',
+   desc:'Files kosten miljarden per jaar. Trein gratis maken of rekeningrijden invoeren?',
+   c:[{lbl:'🚆 Gratis OV',txt:'Openbaar vervoer gratis voor iedereen.',efx:{economie:-10,welzijn:15,klimaat:18,schuld:-18,populariteit:18},money:-350,fb:'NS-treinen overvol maar CO2 daalt 12%! 🌿',fbi:'🚆'},
+      {lbl:'🚗 Rekeningrijden',txt:'Betalen per kilometer. Efficiënt maar impopulair.',efx:{economie:12,welzijn:-8,klimaat:10,schuld:15,populariteit:-15},money:400,fb:'Files halveren! 🚗 Automobilisten zijn woest.',fbi:'🚗'}]},
+  {id:15,cat:'🎓 Onderwijs',ico:'🎓',tit:'Onderwijshervorming 🎓',bg:'#FFF8E1',
+   desc:'Onderwijsniveau daalt en leraren vertrekken. Salarissen verhogen of curriculum hervormen?',
+   c:[{lbl:'💰 Leraren +25%',txt:'Betere beloning trekt goede docenten.',efx:{economie:-10,welzijn:12,klimaat:0,schuld:-14,populariteit:15},money:-300,fb:'Leraren stromen terug! 📚 Schoolresultaten verbeteren.',fbi:'📚'},
+      {lbl:'💻 Curriculum moderniseren',txt:'Meer technologie, minder klassieke vakken.',efx:{economie:8,welzijn:3,klimaat:3,schuld:5,populariteit:5},money:-100,fb:'Techbedrijven juichen! 💻 Classici protesteren bij Rijksmuseum.',fbi:'💻'}]},
+  {id:16,cat:'⚖️ Justitie',ico:'⚖️',tit:'Rechtsstaat in Gevaar ⚖️',bg:'#EDE7F6',
+   desc:'Rechtbanken overbelast, gevangenissen vol. Meer rechters of alternatieve straffen?',
+   c:[{lbl:'⚖️ Meer rechters',txt:'500 extra rechters. Duur maar rechtvaardig.',efx:{economie:-8,welzijn:10,klimaat:0,schuld:-12,populariteit:10},money:-250,fb:'Rechtszaken in 6 maanden afgehandeld! ⚖️',fbi:'⚖️'},
+      {lbl:'🏡 Alternatieve straffen',txt:'Taakstraffen en elektronische enkelbanden.',efx:{economie:5,welzijn:3,klimaat:2,schuld:8,populariteit:-5},money:150,fb:'Gevangenissen ontlasten! Slachtoffers niet gehoord.',fbi:'🏡'}]},
+  {id:17,cat:'🔬 Wetenschap',ico:'🔬',tit:'Wetenschap & Innovatie Race 🔬',bg:'#E0F7FA',
+   desc:'Nederland zakt in wereldranglijsten voor wetenschap. Massief investeren of focussen?',
+   c:[{lbl:'🔬 Fundamenteel onderzoek',txt:'€5 mrd voor universiteiten en labs.',efx:{economie:5,welzijn:5,klimaat:10,schuld:-15,populariteit:8},money:-200,fb:'Nederlandse nobelprijzen over 10 jaar! 🏆',fbi:'🏆'},
+      {lbl:'🦄 Startups & innovatie',txt:'Subsidies voor startups en scale-ups.',efx:{economie:18,welzijn:3,klimaat:5,schuld:10,populariteit:10},money:100,fb:"Unicorns schieten als paddenstoelen op! 🦄",fbi:'🦄'}]},
+  {id:18,cat:'🛡️ Defensie',ico:'🛡️',tit:'Defensiebudget Debat 🛡️',bg:'#EDE7F6',
+   desc:'NAVO eist 2% BNP voor defensie. Meer investeren of diplomatie prioriteren?',
+   c:[{lbl:'🛡️ Budget naar 2%',txt:'Meer tanks en fregatten. Duur maar NAVO-conform.',efx:{economie:-12,welzijn:-5,klimaat:-5,schuld:-20,populariteit:-5},money:-400,fb:'NAVO-partners tevreden! 🎖️ Maar scholen missen geld.',fbi:'🎖️'},
+      {lbl:'🕊️ Diplomatie eerst',txt:'Minder wapens, meer onderhandelen.',efx:{economie:3,welzijn:8,klimaat:5,schuld:5,populariteit:10},money:100,fb:'Nederland wint VN Vredesprijs! 🕊️ NAVO teleurgesteld.',fbi:'🕊️'}]},
+  {id:19,cat:'🚀 Innovatie',ico:'🚀',tit:'De Startup Natie 🦄',bg:'#E8F5E9',
+   desc:'Talent stroomt weg naar Silicon Valley. Startersklimaat verbeteren of hersenvlucht stoppen?',
+   c:[{lbl:'🌍 Talent aantrekken',txt:'Belastingvoordelen en visa voor techtalent.',efx:{economie:15,welzijn:3,klimaat:5,schuld:8,populariteit:5},money:200,fb:"Amsterdam wordt 'Silicon Polder'! 🌷 Huurprijzen exploderen.",fbi:'🌷'},
+      {lbl:'🎓 Lokaal talent koesteren',txt:'Extra investering in Nederlandse universiteiten.',efx:{economie:8,welzijn:10,klimaat:3,schuld:-10,populariteit:12},money:-200,fb:'Jonge Nederlanders blijven! 🎓 Langzame maar duurzame groei.',fbi:'🎓'}]},
+];
+
+const KANS = [
+  {i:'📰',t:'Positief persartikel!',txt:'De NRC roept jou uit tot beste minister in decennia!',m:200,e:{populariteit:10}},
+  {i:'💥',t:'Schandaal!',txt:'Een ambtenaar lekt dat je dure staatsvluchten maakt!',m:-300,e:{populariteit:-15}},
+  {i:'🎁',t:'EU-subsidie!',txt:'De EU kent een klimaatsubsidie toe dankzij jouw beleid.',m:400,e:{klimaat:8}},
+  {i:'⚡',t:'Energiecrisis!',txt:'Een plotselinge energiecrisis treft Nederland hard.',m:-250,e:{economie:-8}},
+  {i:'🏆',t:'Internationale prijs!',txt:'Nederland wint de Meest Duurzame Land prijs van de VN!',m:150,e:{klimaat:10,populariteit:8}},
+  {i:'📉',t:'Beurscrash!',txt:'Een internationale beurscrash raakt ook Nederland.',m:-350,e:{economie:-12}},
+  {i:'🤝',t:'Coalitieakkoord!',txt:'De coalitie stemt unaniem in met jouw plannen. Extra budget!',m:300,e:{populariteit:12}},
+  {i:'🌊',t:'Overstromingsrisico!',txt:'30% van Nederland dreigt te overstromen! Actie vereist.',m:-200,e:{klimaat:-5,populariteit:-8}},
+  {i:'🎪',t:'Festival-economie!',txt:'Grote evenementen trekken toeristen en belastinginkomsten.',m:250,e:{economie:5,populariteit:8}},
+  {i:'🦠',t:'Gezondheidcrisis!',txt:'Een nieuwe variant zorgt voor zorgcrisis. Noodbudget!',m:-300,e:{welzijn:-10}},
+  {i:'🤑',t:'Oliemeewind!',txt:'Olieprijzen stijgen. Energiebedrijven betalen meer belasting.',m:350,e:{economie:6}},
+  {i:'🏅',t:'Olympische spelen!',txt:'Nederland organiseert de Olympische Spelen 2032. Toerisme!',m:400,e:{populariteit:10,economie:5}},
+];
+
+const KAS = [
+  {i:'🏦',t:'Staatskas stuurt geld!',txt:'De economie draait goed. Extra belastinginkomsten!',m:500,e:{schuld:10}},
+  {i:'💸',t:'Onverwachte tegenvaller!',txt:'Een belastingfout kost de staat miljoenen.',m:-400,e:{schuld:-8}},
+  {i:'🎉',t:'Dividend staatsbedrijven!',txt:'KLM, NS en Gasunie keren dividend uit!',m:350,e:{economie:5}},
+  {i:'⚠️',t:'Pensioenfondscrisis!',txt:'Een groot pensioenfonds vraagt staatssteun.',m:-300,e:{welzijn:-6}},
+  {i:'🌍',t:'Noodhulp buitenland',txt:'Een ramp vraagt om Nederlandse humanitaire hulp.',m:-200,e:{populariteit:8}},
+  {i:'🏠',t:'Woningverkoop winst!',txt:'De staat verkoopt overtollig vastgoed. Mooie inkomsten!',m:250,e:{schuld:6}},
+  {i:'💰',t:'Belastingmeevaller!',txt:'Meer mensen werken dan verwacht. Extra belastingen!',m:350,e:{economie:8}},
+  {i:'🏗️',t:'Private investering!',txt:'Private investeerders bouwen gratis nieuwe scholen.',m:200,e:{welzijn:6,populariteit:5}},
+  {i:'🌱',t:'Groene subsidie!',txt:'Een Europees klimaatfonds keert dividend uit.',m:300,e:{klimaat:6}},
+  {i:'🚑',t:'Zorgkosten meevaller',txt:'Preventiebeleid werkt! Zorgkosten vallen mee.',m:250,e:{welzijn:5,schuld:4}},
+];
+
+const MT = {
+  economie:    {l:'Eco',   i:'💰', c:'#2E7D32'},
+  welzijn:     {l:'Welz',  i:'❤️', c:'#C62828'},
+  klimaat:     {l:'Klim',  i:'🌿', c:'#006064'},
+  schuld:      {l:'Schuld',i:'🏛️', c:'#4A148C'},
+  populariteit:{l:'Pop',   i:'📣', c:'#E65100'},
+};
+
+const PAWNS  = ['🎩','👑','🎪','🚀'];
+const COLORS = ['#1565C0','#C62828','#2E7D32','#7B1FA2'];
+const MEDALS = ['🥇','🥈','🥉','🏅'];
+const VERDICTS = ['Legendarische Staatsman!','Uitstekende Minister!','Redelijke Bestuurder','Rampminister 💥'];
+
+// ═════════════════════════════
+// GAME STATE
+// ═════════════════════════════
+let G = {};
+const cl  = v => Math.max(0, Math.min(100, Math.round(v)));
+const cur = () => G.players[G.cur];
+const TOTAL = SQUARES.length; // 40
+
+function freshGame(players) {
+  return {
+    players: players.map((p,i) => ({
+      name:p.name, pawn:PAWNS[i], color:COLORS[i],
+      money:2000, pos:0,
+      meters:{economie:60,welzijn:60,klimaat:50,schuld:55,populariteit:60},
+    })),
+    cur:0, turn:0, maxTurns:12,
+    used: new Set(), rolled:false,
+  };
+}
+
+// ═════════════════════════════
+// SETUP
+// ═════════════════════════════
+let nP = 3;
+function setN(n) {
+  nP = n;
+  document.querySelectorAll('.pcbtn').forEach((b,i) => b.classList.toggle('sel', i===n-2));
+  const c = document.getElementById('prows'); c.innerHTML = '';
+  for (let i=0; i<n; i++) {
+    c.innerHTML += `<div class="prow">
+      <div class="ppawn">${PAWNS[i]}</div>
+      <input class="pinput" id="pn${i}" value="Minister ${i+1}">
+      <div class="pdot" style="background:${COLORS[i]}"></div>
+    </div>`;
+  }
+}
+
+function startGame() {
+  const pl = [];
+  for (let i=0; i<nP; i++) pl.push({name:(document.getElementById('pn'+i)?.value||`Minister ${i+1}`).trim()});
+  G = freshGame(pl);
+  buildBoard();
+  renderHUD();
+  updateBanner();
+  renderTokens();
+  showScreen('game');
+  toast(`🏛️ ${cur().name} ${cur().pawn} begint!`);
+}
+
+function goSetup() { showScreen('setup'); setN(nP); }
+
+// ═════════════════════════════
+// BUILD BOARD
+// ═════════════════════════════
+function buildBoard() {
+  const board = document.getElementById('board');
+  board.querySelectorAll('.sq').forEach(e => e.remove());
+
+  SQUARES.forEach(sq => {
+    const el = document.createElement('div');
+    el.className = sq.cls;
+    el.id = 'sq' + sq.idx;
+    el.style.gridRow    = sq.r;
+    el.style.gridColumn = sq.c;
+
+    const bar = sq.col ? `<div class="bar" style="background:${sq.col}"></div>` : '';
+    const nm  = sq.nm.replace(/\n/g, '<br>');
+
+    if (sq.t === 'corn') {
+      el.innerHTML = `<div class="ico">${sq.ico}</div><div class="nm">${nm}</div>`;
+    } else if (sq.side === 'lft' || sq.side === 'rgt') {
+      el.innerHTML = `${bar}<div class="sin"><div class="ico">${sq.ico}</div><div class="nm">${nm}</div></div>`;
+    } else {
+      el.innerHTML = `${bar}<div class="ico">${sq.ico}</div><div class="nm">${nm}</div>`;
+    }
+
+    const pt = document.createElement('div');
+    pt.className = 'ptok'; pt.id = 'pt' + sq.idx;
+    el.appendChild(pt);
+    board.appendChild(el);
+  });
+}
+
+// ═════════════════════════════
+// TOKENS & HIGHLIGHT
+// ═════════════════════════════
+function renderTokens() {
+  document.querySelectorAll('.ptok').forEach(e => e.innerHTML = '');
+  G.players.forEach(p => {
+    const pt = document.getElementById('pt' + p.pos);
+    if (pt) pt.innerHTML += `<span class="pt" style="color:${p.color}">${p.pawn}</span>`;
+  });
+  document.querySelectorAll('.sq.hl').forEach(e => e.classList.remove('hl','pop'));
+  const el = document.getElementById('sq' + cur().pos);
+  if (el) { el.classList.add('hl'); void el.offsetWidth; el.classList.add('pop'); }
+}
+
+// ═════════════════════════════
+// HUD
+// ═════════════════════════════
+function renderHUD() {
+  const hud = document.getElementById('hud'); hud.innerHTML = '';
+  G.players.forEach((_,i) => {
+    const d = document.createElement('div');
+    d.id = 'hp' + i; d.className = 'hudp'; hud.appendChild(d);
+  });
+  G.players.forEach((_,i) => updHP(i));
+}
+
+function updHP(i) {
+  const p = G.players[i];
+  const el = document.getElementById('hp'+i); if (!el) return;
+  el.className = 'hudp' + (i===G.cur?' cur':'');
+  const ms = Object.entries(MT).map(([k,m]) => {
+    const v = cl(p.meters[k]); const c = v<30?'#C62828':v<50?'#F9A825':m.c;
+    return `<div class="hpm">${m.i}<div class="hpmb"><div class="hpmf" style="width:${v}%;background:${c}"></div></div></div>`;
+  }).join('');
+  el.innerHTML = `<div class="hptop">
+    <span class="hppawn">${p.pawn}</span>
+    <span class="hpname" style="color:${p.color}">${p.name}</span>
+    <span class="hpmoney">€${p.money.toLocaleString('nl')}</span>
+  </div>
+  <div class="hpsub">Vakje ${p.pos+1}/40</div>
+  <div class="hpms">${ms}</div>`;
+}
+
+function updateBanner() {
+  const p = cur();
+  document.getElementById('cbanner').innerHTML = `${p.pawn} <span style="color:${p.color}">${p.name}</span> is aan de beurt`;
+}
+
+// ═════════════════════════════
+// DICE
+// ═════════════════════════════
+const DF = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+
+function rollDice() {
+  if (G.rolled) return;
+  G.rolled = true;
+  document.getElementById('rollBtn').disabled = true;
+  const d1 = document.getElementById('d1'), d2 = document.getElementById('d2');
+  d1.classList.add('roll'); d2.classList.add('roll');
+  let t = 0;
+  const iv = setInterval(() => {
+    d1.textContent = DF[~~(Math.random()*6)];
+    d2.textContent = DF[~~(Math.random()*6)];
+    if (++t > 9) {
+      clearInterval(iv);
+      d1.classList.remove('roll'); d2.classList.remove('roll');
+      const v1=1+~~(Math.random()*6), v2=1+~~(Math.random()*6);
+      d1.textContent=DF[v1-1]; d2.textContent=DF[v2-1];
+      toast(`${cur().pawn} gooit ${v1}+${v2}=${v1+v2}!`);
+      movePlayer(v1+v2);
+    }
+  }, 70);
+}
+
+function movePlayer(steps) {
+  const p = cur(); let step = 0;
+  const iv = setInterval(() => {
+    step++;
+    p.pos = (p.pos+1) % TOTAL;
+    if (p.pos===0 && step>1) { p.money+=200; toast(`🏁 ${p.name} passeert START! +€200`); }
+    renderTokens(); updHP(G.cur);
+    if (step >= steps) { clearInterval(iv); setTimeout(() => land(p.pos), 420); }
+  }, 175);
+}
+
+// ═════════════════════════════
+// LAND
+// ═════════════════════════════
+function land(pos) {
+  const sq = SQUARES[pos], p = cur();
+  switch(sq.t) {
+    case 'corn':
+      if (sq.idx===0)  { p.money+=100; updHP(G.cur); toast(`🏁 ${p.name} landt op START! +€100`); setTimeout(endTurn,1200); }
+      else if (sq.idx===10) { toast(`🔒 ${p.name} bezoekt de gevangenis. Op bezoek!`); setTimeout(endTurn,1200); }
+      else if (sq.idx===20) { p.money+=300; updHP(G.cur); toast(`🌴 ${p.name} op staatsvakantie! +€300`); setTimeout(endTurn,1300); }
+      else if (sq.idx===30) { p.money+=250; updHP(G.cur); toast(`🎰 ${p.name} pakt Gratis Parkeren! +€250`); setTimeout(endTurn,1300); }
+      else endTurn();
+      break;
+    case 'spec': // naar gevangenis
+      toast(`🚓 ${p.name} gaat naar de gevangenis! -€150`);
+      p.money = Math.max(0, p.money-150);
+      p.pos = 10;
+      renderTokens(); updHP(G.cur);
+      setTimeout(endTurn, 1600);
+      break;
+    case 'pol': {
+      let av = POL.filter(c => !G.used.has(c.id));
+      if (!av.length) { G.used.clear(); av = POL.slice(); }
+      let card = sq.pi>=0 ? POL.find(c=>c.id===sq.pi) : null;
+      if (!card || G.used.has(card.id)) card = av[~~(Math.random()*av.length)];
+      G.used.add(card.id);
+      showPol(card);
+      break;
+    }
+    case 'kans': showKK(KANS[~~(Math.random()*KANS.length)], 'kans'); break;
+    case 'kas':  showKK(KAS[~~(Math.random()*KAS.length)],   'kas');  break;
+    case 'tax':
+      p.money = Math.max(0, p.money-sq.tax);
+      updHP(G.cur);
+      toast(`🧾 ${p.name} betaalt -€${sq.tax}`);
+      setTimeout(endTurn, 1300);
+      break;
+    case 'bonus': {
+      const bmap = {9:100,19:200,28:150,38:250};
+      const b = bmap[sq.idx]||100;
+      p.money += b; updHP(G.cur);
+      toast(`🎁 ${p.name} ontvangt +€${b}!`);
+      setTimeout(endTurn, 1300);
+      break;
+    }
+    default: endTurn();
+  }
+}
+
+// ═════════════════════════════
+// POLICY MODAL
+// ═════════════════════════════
+function showPol(card) {
+  const p = cur();
+  document.getElementById('polWho').textContent = `${p.pawn} ${p.name}`;
+  document.getElementById('polCat').textContent = card.cat;
+  document.getElementById('polIco').textContent = card.ico;
+  document.getElementById('polTit').textContent = card.tit;
+  document.getElementById('polDesc').textContent = card.desc;
+  document.getElementById('polHdr').style.background = card.bg;
+  const chs = document.getElementById('polChs'); chs.innerHTML = '';
+  card.c.forEach((c,i) => {
+    const d = document.createElement('div'); d.className = 'ch';
+    const bdg = Object.entries(c.efx).map(([k,v])=>
+      `<span class="bg ${v>0?'bgp':'bgn'}">${MT[k].i}${v>0?'+':''}${v}</span>`).join('');
+    d.innerHTML = `<div class="clbl">${c.lbl}</div><div class="ctxt">${c.txt}</div>
+      <div class="bgs"><span class="bg ${c.money>=0?'bgp':'bgn'}">💶${c.money>=0?'+':''}€${c.money}</span>${bdg}</div>`;
+    d.onclick = () => applyPol(card, i);
+    chs.appendChild(d);
+  });
+  document.getElementById('polOv').classList.add('show');
+}
+
+function applyPol(card, i) {
+  document.getElementById('polOv').classList.remove('show');
+  const p = cur(), c = card.c[i];
+  p.money = Math.max(0, p.money+c.money);
+  const chg = [];
+  for (const [k,v] of Object.entries(c.efx)) { p.meters[k]=cl(p.meters[k]+v); chg.push({k,v}); }
+  updHP(G.cur);
+  document.getElementById('fbIco').textContent = c.fbi;
+  document.getElementById('fbTit').textContent = c.lbl;
+  document.getElementById('fbTxt').textContent = c.fb;
+  const fm = document.getElementById('fbMon');
+  fm.className='mcv '+(c.money>=0?'g':'l');
+  fm.textContent=(c.money>=0?'+':'')+'€'+c.money.toLocaleString('nl');
+  document.getElementById('fbChg').innerHTML = chg.map(x => {
+    const m=MT[x.k]; const col=x.v>0?m.c:'#C62828';
+    return `<div class="mc"><div>${m.i}</div><div class="mv" style="color:${col}">${x.v>0?'+':''}${x.v}</div><div style="font-size:8px;opacity:.5">${m.l}</div></div>`;
+  }).join('');
+  document.getElementById('fbOv').classList.add('show');
+}
+function closeFB() { document.getElementById('fbOv').classList.remove('show'); endTurn(); }
+
+// ═════════════════════════════
+// KANS / KAS
+// ═════════════════════════════
+function showKK(card, type) {
+  const p = cur();
+  document.getElementById('kkWho').textContent = `${p.pawn} ${p.name}`;
+  document.getElementById('kkIco').textContent = card.i;
+  document.getElementById('kkTit').textContent = card.t;
+  document.getElementById('kkTxt').textContent = card.txt;
+  document.getElementById('kkHdr').className = 'mhdr '+(type==='kans'?'kh':'sh');
+  p.money = Math.max(0, p.money+card.m);
+  if (card.e) for (const [k,v] of Object.entries(card.e)) p.meters[k]=cl(p.meters[k]+v);
+  updHP(G.cur);
+  const km = document.getElementById('kkMon');
+  km.className = 'mcv '+(card.m>=0?'g':'l');
+  km.textContent = (card.m>=0?'+':'')+'€'+card.m.toLocaleString('nl');
+  document.getElementById('kkOv').classList.add('show');
+}
+function closeKK() { document.getElementById('kkOv').classList.remove('show'); endTurn(); }
+
+// ═════════════════════════════
+// END TURN
+// ═════════════════════════════
+function endTurn() {
+  G.turn++;
+  if (G.turn >= G.players.length * G.maxTurns) { showResults(); return; }
+  G.cur = (G.cur+1) % G.players.length;
+  G.rolled = false;
+  document.getElementById('rollBtn').disabled = false;
+  G.players.forEach((_,i) => updHP(i));
+  renderTokens();
+  updateBanner();
+  toast(`➡️ ${cur().pawn} ${cur().name} is aan de beurt!`);
+}
+
+// ═════════════════════════════
+// RESULTS
+// ═════════════════════════════
+function showResults() {
+  showScreen('results');
+  const sc = G.players.map(p => ({
+    ...p, score: Math.round(p.money/80 + Object.values(p.meters).reduce((a,b)=>a+b,0)/5)
+  })).sort((a,b) => b.score-a.score);
+
+  document.getElementById('resBig').textContent = MEDALS[0];
+  document.getElementById('resTitle').textContent = `${sc[0].pawn} ${sc[0].name} wint!`;
+  document.getElementById('resSub').textContent = VERDICTS[0];
+
+  const lb = document.getElementById('lb'); lb.innerHTML = '';
+  sc.forEach((p,i) => {
+    const ms = Object.entries(MT).map(([k,m]) => {
+      const v=cl(p.meters[k]); const c=v<30?'#C62828':v<50?'#F9A825':m.c;
+      return `<span class="lbm" style="color:${c}">${m.i}${v}</span>`;
+    }).join('');
+    lb.innerHTML += `<div class="lbrow" style="border-left:4px solid ${p.color}">
+      <div class="lbmed">${MEDALS[i]||'🏅'}</div>
+      <div class="lbpawn">${p.pawn}</div>
+      <div class="lbinfo">
+        <div class="lbname" style="color:${p.color}">${p.name}</div>
+        <div class="lbv">${VERDICTS[Math.min(i,3)]}</div>
+        <div class="lbms">${ms}</div>
+      </div>
+      <div class="lbmoney">€${p.money.toLocaleString('nl')}</div>
+    </div>`;
+  });
+}
+
+// ═════════════════════════════
+// UTILS
+// ═════════════════════════════
+let toastT;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2500);
+}
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+setN(3);
+</script>
+</body>
+</html>
