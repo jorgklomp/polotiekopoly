@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>POLITIÉKOPOLY – Online Multiplayer</title>
+<script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Boogaloo&family=Nunito:wght@400;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Nunito',sans-serif;background:#1a5c30;background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.05) 0,rgba(0,0,0,.05) 1px,transparent 1px,transparent 12px),repeating-linear-gradient(-45deg,rgba(0,0,0,.05) 0,rgba(0,0,0,.05) 1px,transparent 1px,transparent 12px);min-height:100vh;}
+.screen{display:none!important;}.screen.active{display:flex!important;}
+#lobby.active{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:16px;width:100%;}
+#waiting.active{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:16px;width:100%;}
+#game.active{flex-direction:column;align-items:center;padding:8px;gap:8px;min-height:100vh;width:100%;}
+#results.active{flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:16px;width:100%;}
+
+/* LOBBY */
+.box{background:#F5F0DC;border:7px solid #5D4037;border-radius:14px;max-width:480px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+.boxtop{background:linear-gradient(135deg,#1A237E,#283593);padding:22px 20px 14px;text-align:center;border-bottom:5px solid #F9A825;}
+.gtitle{font-family:'Boogaloo',cursive;font-size:clamp(36px,9vw,62px);color:#F5F0DC;line-height:.88;text-shadow:3px 3px 0 rgba(0,0,0,.4);}
+.gtitle span{color:#F9A825;}
+.gsub{font-family:'Boogaloo',cursive;font-size:13px;color:rgba(255,255,255,.55);margin-top:6px;}
+.boxbody{padding:20px;}
+.lsec{margin-bottom:18px;}
+.llbl{font-family:'Boogaloo',cursive;font-size:15px;color:#5D4037;margin-bottom:8px;}
+.finput{width:100%;font-family:'Nunito',sans-serif;font-size:15px;font-weight:700;border:3px solid #ddd;border-radius:8px;padding:10px 13px;outline:none;transition:border-color .15s;background:#fff;}
+.finput:focus{border-color:#1A237E;}
+.finput.code{font-size:24px;letter-spacing:8px;text-align:center;text-transform:uppercase;font-family:'Boogaloo',cursive;}
+.btn{width:100%;font-family:'Boogaloo',cursive;font-size:20px;letter-spacing:1px;padding:13px;border-radius:8px;cursor:pointer;transition:transform .1s,box-shadow .1s;text-transform:uppercase;border:3px solid;}
+.btn:hover{transform:translateY(-2px);}
+.btn:active{transform:translateY(2px);}
+.btn-green{background:linear-gradient(180deg,#43A047,#1B5E20);color:#fff;border-color:#0a2e0a;box-shadow:0 4px 0 #0a2e0a;margin-bottom:9px;}
+.btn-green:hover{box-shadow:0 6px 0 #0a2e0a;}
+.btn-blue{background:linear-gradient(180deg,#1976D2,#1A237E);color:#fff;border-color:#0d1160;box-shadow:0 4px 0 #0d1160;margin-bottom:9px;}
+.btn-blue:hover{box-shadow:0 6px 0 #0d1160;}
+.btn-orange{background:linear-gradient(180deg,#F9A825,#E65100);color:#fff;border-color:#b34700;box-shadow:0 4px 0 #7a3000;margin-bottom:9px;}
+.btn-orange:hover{box-shadow:0 6px 0 #7a3000;}
+.btn-red{background:linear-gradient(180deg,#E53935,#C62828);color:#fff;border-color:#8B0000;box-shadow:0 4px 0 #5a0000;}
+.btn-red:hover{box-shadow:0 6px 0 #5a0000;}
+.divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:#999;font-size:12px;font-weight:700;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#ddd;}
+.errmsg{color:#C62828;font-size:12px;font-weight:700;text-align:center;margin-top:8px;min-height:18px;}
+
+/* WAITING ROOM */
+.waitbox{background:#F5F0DC;border:7px solid #5D4037;border-radius:14px;max-width:460px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+.waittop{background:linear-gradient(135deg,#1A237E,#283593);padding:18px 20px 14px;text-align:center;border-bottom:5px solid #F9A825;}
+.roomcode{font-family:'Boogaloo',cursive;font-size:52px;color:#F9A825;letter-spacing:10px;text-shadow:2px 2px 0 rgba(0,0,0,.4);margin:4px 0;}
+.waitbody{padding:18px;}
+.playerlist{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;min-height:60px;}
+.pcard{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.04);border:1.5px solid rgba(0,0,0,.08);border-radius:9px;padding:10px 13px;}
+.pcpawn{font-size:26px;}
+.pcname{font-family:'Boogaloo',cursive;font-size:17px;flex:1;}
+.pcbadge{font-size:10px;font-weight:800;padding:3px 7px;border-radius:12px;background:#1A237E;color:#fff;}
+.pcbadge.me{background:#2E7D32;}
+.waitinfo{text-align:center;font-size:12px;color:#888;font-weight:700;margin-bottom:14px;}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid #ccc;border-top-color:#1A237E;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:4px;}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* HUD */
+.hud{width:100%;max-width:950px;display:flex;gap:5px;flex-wrap:nowrap;overflow-x:auto;}
+.hudp{background:#F5F0DC;border:3px solid #5D4037;border-radius:7px;padding:5px 9px;flex:1;min-width:100px;box-shadow:2px 2px 0 #5D4037;position:relative;overflow:hidden;transition:all .2s;}
+.hudp.cur{background:#FFFDE7;border-color:#F9A825;box-shadow:3px 3px 0 #b34700,0 0 10px rgba(249,168,37,.35);}
+.hudp.cur::after{content:'▶';position:absolute;top:3px;right:5px;font-size:9px;color:#F9A825;}
+.hudp.mep{border-style:dashed;}
+.hptop{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
+.hppawn{font-size:17px;}
+.hpname{font-family:'Boogaloo',cursive;font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hpmoney{font-family:'Boogaloo',cursive;font-size:13px;color:#1B5E20;white-space:nowrap;}
+.hpsub{font-size:9px;color:#888;font-weight:700;margin-bottom:2px;}
+.hpms{display:flex;gap:2px;}
+.hpm{display:flex;align-items:center;gap:1px;font-size:8px;font-weight:800;}
+.hpmb{width:18px;height:4px;background:rgba(0,0,0,.1);border-radius:2px;overflow:hidden;}
+.hpmf{height:100%;border-radius:2px;transition:width .4s ease;}
+
+/* BOARD */
+.board{background:#F5F0DC;border:5px solid #5D4037;border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,.65);width:100%;max-width:950px;display:grid;grid-template-columns:88px repeat(9,1fr) 88px;grid-template-rows:88px repeat(9,1fr) 88px;position:relative;overflow:hidden;}
+.bcenter{grid-column:2/11;grid-row:2/11;background:linear-gradient(135deg,#e8f5e9 0%,#f5f0dc 45%,#e8eaf6 100%);border:1px solid rgba(0,0,0,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:10px;}
+.clogo{font-family:'Boogaloo',cursive;font-size:clamp(13px,2.5vw,26px);color:#1A237E;text-align:center;line-height:1;}
+.clogo span{color:#C62828;}
+.cbanner{background:#1A237E;color:#fff;font-family:'Boogaloo',cursive;font-size:clamp(10px,1.6vw,15px);padding:4px 12px;border-radius:16px;border:2px solid #F9A825;text-align:center;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+.drow{display:flex;gap:7px;}
+.die{width:40px;height:40px;background:#fff;border:3px solid #5D4037;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:2px 2px 0 #5D4037;}
+.die.roll{animation:dr .5s ease;}
+@keyframes dr{0%{transform:rotate(0)scale(1)}25%{transform:rotate(90deg)scale(1.2)}50%{transform:rotate(180deg)scale(.8)}75%{transform:rotate(270deg)scale(1.2)}100%{transform:rotate(360deg)scale(1)}}
+.btnroll{background:linear-gradient(180deg,#F44336,#C62828);color:#fff;font-family:'Boogaloo',cursive;font-size:15px;letter-spacing:1px;padding:8px 18px;border:3px solid #7f0000;border-radius:7px;cursor:pointer;box-shadow:0 4px 0 #4a0000;transition:transform .1s,box-shadow .1s;text-transform:uppercase;}
+.btnroll:hover{transform:translateY(-2px);box-shadow:0 6px 0 #4a0000;}
+.btnroll:active{transform:translateY(2px);box-shadow:0 1px 0 #4a0000;}
+.btnroll:disabled{opacity:.35;cursor:not-allowed;transform:none!important;box-shadow:0 4px 0 #4a0000!important;}
+.crow{display:flex;gap:6px;}
+.cstk{width:48px;height:32px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;text-align:center;border:2px solid rgba(0,0,0,.2);position:relative;text-transform:uppercase;line-height:1.2;}
+.cstk::before,.cstk::after{content:'';position:absolute;inset:0;border-radius:4px;border:2px solid rgba(0,0,0,.1);}
+.cstk::before{transform:translate(-3px,-3px);}.cstk::after{transform:translate(-5px,-5px);}
+.ck{background:#FFF9C4;color:#5D4037;}.cs{background:#E3F2FD;color:#1A237E;}
+.roompin{font-family:'Boogaloo',cursive;font-size:11px;color:rgba(0,0,0,.25);letter-spacing:2px;}
+
+/* SQUARES */
+.sq{position:relative;background:#F5F0DC;border:1px solid rgba(0,0,0,.17);overflow:hidden;display:flex;min-width:0;min-height:0;}
+.sq.corn{flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px;background:#ECE7CC;}
+.sq.corn .ico{font-size:clamp(15px,2.2vw,25px);}
+.sq.corn .nm{font-size:clamp(4.5px,.65vw,7.5px);font-weight:800;text-align:center;text-transform:uppercase;line-height:1.2;color:#333;}
+.sq.bot{flex-direction:column;align-items:center;justify-content:flex-end;padding:2px 1px 3px;}
+.sq.bot .bar{position:absolute;top:0;left:0;right:0;height:9px;}
+.sq.bot .ico,.sq.top .ico{font-size:clamp(9px,1.3vw,15px);line-height:1;display:block;text-align:center;}
+.sq.bot .nm,.sq.top .nm{font-size:clamp(4px,.58vw,6.5px);font-weight:800;text-align:center;line-height:1.15;text-transform:uppercase;color:#222;}
+.sq.top{flex-direction:column;align-items:center;justify-content:flex-start;padding:3px 1px 2px;}
+.sq.top .bar{position:absolute;bottom:0;left:0;right:0;height:9px;}
+.sq.rgt{flex-direction:row-reverse;align-items:center;padding:2px 3px;}
+.sq.rgt .bar{position:absolute;left:0;top:0;bottom:0;width:9px;height:auto;}
+.sq.rgt .sin{display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;padding-left:11px;}
+.sq.lft{flex-direction:row;align-items:center;padding:2px 3px;}
+.sq.lft .bar{position:absolute;right:0;top:0;bottom:0;width:9px;height:auto;}
+.sq.lft .sin{display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;padding-right:11px;}
+.sq.rgt .ico,.sq.lft .ico{font-size:clamp(9px,1.3vw,15px);line-height:1;text-align:center;}
+.sq.rgt .nm,.sq.lft .nm{font-size:clamp(4px,.58vw,6.5px);font-weight:800;text-align:center;line-height:1.15;text-transform:uppercase;color:#222;}
+.sq.tkans{background:#FFFDE7;}.sq.tkas{background:#E8EAF6;}.sq.ttax{background:#FFF3E0;}.sq.tbonus{background:#E8F5E9;}
+.sq.hl{outline:3px solid #F9A825;outline-offset:-2px;z-index:6;}
+.sq.pop{animation:sqp .35s cubic-bezier(.34,1.56,.64,1);}
+@keyframes sqp{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+.ptok{position:absolute;bottom:1px;left:0;right:0;display:flex;flex-wrap:wrap;justify-content:center;gap:1px;z-index:4;pointer-events:none;}
+.pt{font-size:clamp(8px,1vw,13px);line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,.6));}
+
+/* MODALS */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:300;display:none;align-items:center;justify-content:center;padding:12px;backdrop-filter:blur(5px);}
+.ov.show{display:flex;}
+.modal{background:#F5F0DC;border:5px solid #5D4037;border-radius:12px;max-width:440px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7);animation:mpop .3s cubic-bezier(.34,1.56,.64,1);}
+.msc{max-height:88vh;overflow-y:auto;}
+@keyframes mpop{from{transform:scale(.6)rotate(-3deg);opacity:0}to{transform:scale(1)rotate(0);opacity:1}}
+.mhdr{padding:13px 15px 9px;text-align:center;border-bottom:3px solid #5D4037;}
+.mwho{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;opacity:.55;margin-bottom:3px;}
+.mcat{font-size:9px;font-weight:800;letter-spacing:3px;text-transform:uppercase;opacity:.4;margin-bottom:3px;}
+.mico{font-size:42px;display:block;margin-bottom:4px;}
+.mtit{font-family:'Boogaloo',cursive;font-size:21px;color:#111;line-height:1.1;}
+.mbody{padding:11px 14px;}
+.mdesc{font-size:13px;color:#333;line-height:1.6;margin-bottom:11px;border-left:4px solid #F9A825;padding-left:9px;}
+.choices{display:flex;flex-direction:column;gap:7px;}
+.ch{background:#fff;border:2.5px solid rgba(0,0,0,.12);border-radius:7px;padding:10px 11px;cursor:pointer;transition:all .15s;text-align:left;}
+.ch:hover{border-color:#1A237E;transform:translateX(3px);box-shadow:-3px 0 0 #1A237E;}
+.clbl{font-family:'Boogaloo',cursive;font-size:15px;color:#111;margin-bottom:2px;}
+.ctxt{font-size:11.5px;color:#555;line-height:1.45;}
+.bgs{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px;}
+.bg{font-size:9.5px;font-weight:800;padding:2px 5px;border-radius:3px;border:1px solid rgba(0,0,0,.11);}
+.bgp{background:#E8F5E9;color:#1B5E20;}.bgn{background:#FFEBEE;color:#B71C1C;}
+.waitingchoice{text-align:center;padding:16px 14px;color:#888;font-size:13px;font-weight:700;}
+.fbhdr{text-align:center;padding:15px 14px 9px;border-bottom:3px solid #5D4037;}
+.fbico{font-size:54px;display:block;margin-bottom:5px;animation:bp .4s cubic-bezier(.34,1.56,.64,1);}
+@keyframes bp{from{transform:scale(0)}to{transform:scale(1)}}
+.fbtit{font-family:'Boogaloo',cursive;font-size:21px;color:#111;}
+.fbbody{padding:11px 14px;}
+.fbtxt{font-size:13px;color:#333;line-height:1.6;margin-bottom:9px;}
+.mcv{font-family:'Boogaloo',cursive;font-size:19px;text-align:center;margin-bottom:7px;}
+.mcv.g{color:#1B5E20;}.mcv.l{color:#C62828;}
+.mchg{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-bottom:11px;}
+.mc{background:rgba(0,0,0,.05);border-radius:4px;padding:4px 2px;text-align:center;font-size:9.5px;font-weight:800;}
+.mc .mv{font-size:12px;font-family:'Boogaloo',cursive;}
+.btncont{width:100%;background:linear-gradient(180deg,#1565C0,#1A237E);color:#fff;font-family:'Boogaloo',cursive;font-size:17px;letter-spacing:1px;padding:11px;border:3px solid #0d1160;border-radius:7px;cursor:pointer;box-shadow:0 4px 0 #06093a;transition:transform .1s,box-shadow .1s;text-transform:uppercase;}
+.btncont:hover{transform:translateY(-2px);box-shadow:0 6px 0 #06093a;}
+.kh{background:#FFF9C4!important;}.sh{background:#E3F2FD!important;}
+
+/* RESULTS */
+.resbox{background:#F5F0DC;border:6px solid #5D4037;border-radius:12px;max-width:500px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.65);}
+.restop{background:linear-gradient(135deg,#1A237E,#283593);padding:18px;text-align:center;border-bottom:5px solid #F9A825;}
+.resbig{font-size:64px;display:block;animation:rspin .6s ease;}
+@keyframes rspin{from{transform:rotate(-180deg)scale(0)}to{transform:rotate(0)scale(1)}}
+.restitle{font-family:'Boogaloo',cursive;font-size:32px;color:#fff;margin-top:5px;}
+.ressub{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;}
+.resbody{padding:16px;}
+.lb{display:flex;flex-direction:column;gap:7px;margin-bottom:16px;}
+.lbrow{display:flex;align-items:center;gap:9px;background:rgba(0,0,0,.04);border:1.5px solid rgba(0,0,0,.09);border-radius:8px;padding:9px 11px;}
+.lbmed{font-size:20px;width:28px;text-align:center;}
+.lbpawn{font-size:24px;}
+.lbinfo{flex:1;}
+.lbname{font-family:'Boogaloo',cursive;font-size:16px;}
+.lbv{font-size:10px;color:#666;font-weight:700;}
+.lbms{display:flex;gap:3px;margin-top:3px;flex-wrap:wrap;}
+.lbm{font-size:9.5px;font-weight:800;padding:2px 4px;background:rgba(0,0,0,.06);border-radius:3px;}
+.lbmoney{font-family:'Boogaloo',cursive;font-size:19px;color:#1B5E20;}
+
+/* STATUS */
+.connstatus{position:fixed;bottom:10px;right:10px;font-size:10px;font-weight:800;padding:4px 8px;border-radius:10px;z-index:400;border:1px solid;}
+.cok{background:#E8F5E9;color:#1B5E20;border-color:#1B5E20;}
+.cerr{background:#FFEBEE;color:#C62828;border-color:#C62828;}
+
+/* TOAST */
+.toast{position:fixed;top:12px;left:50%;transform:translateX(-50%)translateY(-65px);background:#1A237E;color:#fff;font-family:'Boogaloo',cursive;font-size:14px;padding:8px 18px;border-radius:22px;border:2px solid rgba(255,255,255,.2);z-index:600;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.45);max-width:90vw;overflow:hidden;text-overflow:ellipsis;}
+.toast.show{transform:translateX(-50%)translateY(0);}
+
+@media(max-width:600px){
+  .board{grid-template-columns:62px repeat(9,1fr) 62px;grid-template-rows:62px repeat(9,1fr) 62px;}
+  .hudp{min-width:78px;}.hpms{display:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="lobby" class="screen active">
+  <div class="box">
+    <div class="boxtop">
+      <div class="gtitle">POLITIEK<span>OPOLY</span></div>
+      <div class="gsub">🌐 Online Multiplayer · Gratis · 2–4 Spelers</div>
+    </div>
+    <div class="boxbody">
+      <div class="lsec">
+        <div class="llbl">👤 Jouw naam:</div>
+        <input class="finput" id="myName" placeholder="Voer je naam in..." maxlength="18" autocomplete="off">
+      </div>
+      <button class="btn btn-green" onclick="createRoom()">🏠 Nieuwe kamer aanmaken</button>
+      <div class="divider">OF KAMER BINNENGAAN</div>
+      <div class="lsec">
+        <div class="llbl">🔑 Kamercode (4 letters):</div>
+        <input class="finput code" id="joinCode" placeholder="ABCD" maxlength="4" autocomplete="off">
+      </div>
+      <button class="btn btn-blue" onclick="joinRoom()">🚪 Binnengaan</button>
+      <div class="errmsg" id="lobbyErr"></div>
+    </div>
+  </div>
+</div>
+
+<!-- WAITING ROOM -->
+<div id="waiting" class="screen">
+  <div class="waitbox">
+    <div class="waittop">
+      <div style="font-family:'Boogaloo',cursive;font-size:13px;color:rgba(255,255,255,.5);margin-bottom:3px;">KAMERCODE — deel met vrienden!</div>
+      <div class="roomcode" id="roomCodeDisp">????</div>
+      <div style="font-family:'Boogaloo',cursive;font-size:12px;color:rgba(255,255,255,.4);">Iedereen vult dezelfde code in</div>
+    </div>
+    <div class="waitbody">
+      <div class="waitinfo"><span class="spinner"></span>Wachten op spelers (<span id="pCount">1</span>/4)…</div>
+      <div class="playerlist" id="waitList"></div>
+      <button class="btn btn-orange" id="startBtn" onclick="hostStart()" style="display:none">🎲 Spel starten!</button>
+      <button class="btn btn-red" onclick="leaveRoom()" style="margin-top:9px">← Terug naar lobby</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game" class="screen">
+  <div class="hud" id="hud"></div>
+  <div class="board" id="board">
+    <div class="bcenter">
+      <div class="clogo">POLITIEK<span>OPOLY</span></div>
+      <div class="cbanner" id="cbanner">Welkom!</div>
+      <div class="drow">
+        <div class="die" id="d1">⚀</div>
+        <div class="die" id="d2">⚀</div>
+      </div>
+      <button class="btnroll" id="rollBtn" onclick="rollDice()" disabled>🎲 GOOI!</button>
+      <div class="crow">
+        <div class="cstk ck">❓<br>KANS</div>
+        <div class="cstk cs">🏦<br>STAATSKAS</div>
+      </div>
+      <div class="roompin" id="roomPin"></div>
+    </div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="results" class="screen">
+  <div class="resbox">
+    <div class="restop">
+      <span class="resbig" id="resBig">🏛️</span>
+      <div class="restitle" id="resTitle">Spel voorbij!</div>
+      <div class="ressub" id="resSub"></div>
+    </div>
+    <div class="resbody">
+      <div class="lb" id="lb"></div>
+      <button class="btn btn-blue" onclick="goLobby()" style="margin-top:0">🏠 Terug naar lobby</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Policy -->
+<div class="ov" id="polOv">
+  <div class="modal"><div class="msc">
+    <div class="mhdr" id="polHdr">
+      <div class="mwho" id="polWho"></div>
+      <div class="mcat" id="polCat"></div>
+      <span class="mico" id="polIco">🃏</span>
+      <div class="mtit" id="polTit"></div>
+    </div>
+    <div class="mbody">
+      <div class="mdesc" id="polDesc"></div>
+      <div class="choices" id="polChs"></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- MODAL: Kans/Kas -->
+<div class="ov" id="kkOv">
+  <div class="modal">
+    <div class="mhdr" id="kkHdr">
+      <div class="mwho" id="kkWho"></div>
+      <span class="mico" id="kkIco">❓</span>
+      <div class="mtit" id="kkTit"></div>
+    </div>
+    <div class="mbody">
+      <div class="fbtxt" id="kkTxt"></div>
+      <div class="mcv" id="kkMon"></div>
+      <button class="btncont" id="kkBtn" onclick="sendAction({type:'closeKK'})">Oké →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Feedback -->
+<div class="ov" id="fbOv">
+  <div class="modal">
+    <div class="fbhdr"><span class="fbico" id="fbIco">😮</span><div class="fbtit" id="fbTit"></div></div>
+    <div class="fbbody">
+      <div class="fbtxt" id="fbTxt"></div>
+      <div class="mcv" id="fbMon"></div>
+      <div class="mchg" id="fbChg"></div>
+      <button class="btncont" id="fbBtn" onclick="sendAction({type:'closeFB'})">Volgende speler →</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="connstatus cok" id="connSt">🟢 Verbonden</div>
+
+<script>
+// ═══════════════════════════════════════════
+// FREE ABLY API KEY — get yours at ably.com
+// Replace the line below with your own key:
+// const ABLY_KEY = 'xVLgyA.XXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXX';
+// ═══════════════════════════════════════════
+const ABLY_KEY = 'xVLgyA.m0eFdQ:REPLACE_WITH_YOUR_KEY';
+
+// ═══════════════════════════════════════════
+// BOARD — 40 squares, 11×11 CSS grid
+// ═══════════════════════════════════════════
+const RAW=[
+  {t:'corn',ico:'🏁',nm:'START',           col:null,      pi:-1,tax:0},   //0  bot row
+  {t:'pol', ico:'💰',nm:'Belasting',        col:'#2E7D32', pi:0, tax:0},   //1
+  {t:'kans',ico:'❓',nm:'KANS',             col:null,      pi:-1,tax:0},   //2
+  {t:'pol', ico:'🏠',nm:'Soc.\nZekerheid',  col:'#2E7D32', pi:1, tax:0},   //3
+  {t:'pol', ico:'🏥',nm:'Zorg',             col:'#B71C1C', pi:2, tax:0},   //4
+  {t:'tax', ico:'🧾',nm:'BTW\n−€150',       col:null,      pi:-1,tax:150}, //5
+  {t:'pol', ico:'🌿',nm:'Klimaat',          col:'#006064', pi:3, tax:0},   //6
+  {t:'kas', ico:'🏦',nm:'STAATSKAS',        col:null,      pi:-1,tax:0},   //7
+  {t:'pol', ico:'📊',nm:'Economie',         col:'#E65100', pi:4, tax:0},   //8
+  {t:'pol', ico:'🚗',nm:'Mobiliteit',       col:'#E65100', pi:14,tax:0},   //9
+  {t:'corn',ico:'🔒',nm:'GEVANGENIS\nBezoek',col:null,     pi:-1,tax:0},   //10
+  {t:'pol', ico:'💸',nm:'Bezuiniging',      col:'#4A148C', pi:5, tax:0},   //11 right col
+  {t:'kans',ico:'❓',nm:'KANS',             col:null,      pi:-1,tax:0},   //12
+  {t:'pol', ico:'⚛️',nm:'Kern-\nenergie',   col:'#006064', pi:6, tax:0},   //13
+  {t:'pol', ico:'🤖',nm:'Robot-\nbelast.',  col:'#2E7D32', pi:7, tax:0},   //14
+  {t:'tax', ico:'🚨',nm:'BOETE\n−€120',     col:null,      pi:-1,tax:120}, //15
+  {t:'pol', ico:'🏗️',nm:'Infra-\nstruct.',  col:'#E65100', pi:8, tax:0},   //16
+  {t:'kas', ico:'🏦',nm:'STAATSKAS',        col:null,      pi:-1,tax:0},   //17
+  {t:'pol', ico:'🌾',nm:'Landbouw',         col:'#2E7D32', pi:9, tax:0},   //18
+  {t:'bonus',ico:'💎',nm:'JACKPOT\n+€200',  col:null,      pi:-1,tax:0},   //19
+  {t:'corn',ico:'🌴',nm:'VAKANTIE\nStaatsk.',col:null,     pi:-1,tax:0},   //20 top row
+  {t:'pol', ico:'💼',nm:'Werkloosh.',        col:'#E65100', pi:10,tax:0},   //21
+  {t:'kas', ico:'🏦',nm:'STAATSKAS',         col:null,      pi:-1,tax:0},   //22
+  {t:'pol', ico:'🏡',nm:'Woning-\nnood',     col:'#B71C1C', pi:11,tax:0},   //23
+  {t:'kans',ico:'❓',nm:'KANS',              col:null,      pi:-1,tax:0},   //24
+  {t:'pol', ico:'🌍',nm:'Klimaat-\nverdrag', col:'#006064', pi:12,tax:0},   //25
+  {t:'tax', ico:'💸',nm:'CRISIS!\n−€200',    col:null,      pi:-1,tax:200}, //26
+  {t:'pol', ico:'🧠',nm:'GGZ\nZorg',         col:'#B71C1C', pi:13,tax:0},   //27
+  {t:'bonus',ico:'🌟',nm:'SUBSIDIE\n+€150',  col:null,      pi:-1,tax:0},   //28
+  {t:'pol', ico:'🔬',nm:'Wetenschap',        col:'#006064', pi:17,tax:0},   //29
+  {t:'corn',ico:'🎰',nm:'GRATIS\nParkeren',  col:null,      pi:-1,tax:0},   //30
+  {t:'pol', ico:'🎓',nm:'Onderwijs',         col:'#F9A825', pi:15,tax:0},   //31 left col
+  {t:'kans',ico:'❓',nm:'KANS',              col:null,      pi:-1,tax:0},   //32
+  {t:'pol', ico:'⚖️',nm:'Justitie',          col:'#4A148C', pi:16,tax:0},   //33
+  {t:'tax', ico:'🏧',nm:'BANK\n−€100',       col:null,      pi:-1,tax:100}, //34
+  {t:'spec',ico:'🚓',nm:'NAAR\nGEVANG.',     col:'#C62828', pi:-1,tax:150}, //35
+  {t:'kas', ico:'🏦',nm:'STAATSKAS',         col:null,      pi:-1,tax:0},   //36
+  {t:'pol', ico:'🛡️',nm:'Defensie',          col:'#4A148C', pi:18,tax:0},   //37
+  {t:'bonus',ico:'🎊',nm:'VERKIEZING\n+€250',col:null,      pi:-1,tax:0},   //38
+  {t:'pol', ico:'🚀',nm:'Innovatie',         col:'#1565C0', pi:19,tax:0},   //39
+];
+
+const SQ=RAW.map((s,i)=>{
+  let r,c,side;
+  if(i<=10)      {r=11;c=i+1;       side='bot';}
+  else if(i<=19) {r=10-(i-11);c=11; side='rgt';}
+  else if(i<=30) {r=1; c=11-(i-20); side='top';}
+  else           {r=2+(i-31);c=1;   side='lft';}
+  let cls='sq '+side;
+  if(s.t==='corn')cls+=' corn';
+  if(s.t==='kans')cls+=' tkans';
+  if(s.t==='kas') cls+=' tkas';
+  if(s.t==='tax'||s.t==='spec')cls+=' ttax';
+  if(s.t==='bonus')cls+=' tbonus';
+  return {...s,idx:i,r,c,side,cls};
+});
+const TOTAL=SQ.length;
+
+// ═══════════════════════════════════════════
+// CARDS
+// ═══════════════════════════════════════════
+const POL=[
+  {id:0,cat:'💰 Belastingen',ico:'💰',tit:'Vermogensbelasting 💣',bg:'#E8F5E9',desc:'Rijke Nederlanders betalen weinig over hun vermogen. Verhoog de belasting of riskeer kapitaalvlucht?',c:[{lbl:'💸 Belasting verhogen',txt:'3% hogere belasting. Meer voor de schatkist.',efx:{economie:-5,welzijn:10,klimaat:0,schuld:15,populariteit:8},money:300,fb:'Meer inkomsten! Maar miljardairs naar Monaco. 🏖️',fbi:'🏦'},{lbl:'🤝 Status quo',txt:'Geen verandering. Ongelijkheid blijft.',efx:{economie:8,welzijn:-8,klimaat:0,schuld:-5,populariteit:-10},money:-100,fb:'Rijken blijven. Critici noemen je "rijkelui-minister"! 🎩',fbi:'🎩'}]},
+  {id:1,cat:'🏠 Sociale Zekerheid',ico:'👴',tit:'AOW-Pensioen Puzzel 👴',bg:'#FFF3E0',desc:'Ouderen leven langer, AOW-kosten schieten omhoog.',c:[{lbl:'⬆️ AOW verhogen',txt:'€150 meer per maand. Ouderen blij.',efx:{economie:-8,welzijn:15,klimaat:0,schuld:-18,populariteit:12},money:-200,fb:'Oma en opa wekelijks naar de bingo! 🎱',fbi:'👵'},{lbl:'📅 Pensioenleeftijd 68',txt:'Spaart kosten maar werknemers zijn woest.',efx:{economie:10,welzijn:-12,klimaat:0,schuld:12,populariteit:-15},money:400,fb:'De bonden staken! 🪧 Staatsfinanciën verbeteren.',fbi:'😡'}]},
+  {id:2,cat:'🏥 Zorg',ico:'🩺',tit:'Zorgcrisis-Dilemma 🩺',bg:'#FCE4EC',desc:'Ziekenhuizen te weinig personeel.',c:[{lbl:'💊 Salarissen +20%',txt:'Meer personeel maar enorm duur.',efx:{economie:-12,welzijn:18,klimaat:0,schuld:-15,populariteit:14},money:-350,fb:'Duizenden verpleegkundigen melden zich! 👩‍⚕️',fbi:'👨‍⚕️'},{lbl:'🤖 ZorgBot 3000',txt:'AI-assistenten. Efficiënter maar kil.',efx:{economie:5,welzijn:-5,klimaat:-3,schuld:8,populariteit:-8},money:150,fb:'Patiënten verdeeld over robot-verpleegkundige. 🤖',fbi:'🤖'}]},
+  {id:3,cat:'🌿 Klimaat',ico:'🥩',tit:'Vleestaks Revolutie 🥩',bg:'#E8F5E9',desc:'Vlees produceren stoot enorm veel CO2 uit.',c:[{lbl:'🌱 Vleestaks invoeren',txt:'Vlees 40% duurder. Klimaatwinst!',efx:{economie:-6,welzijn:-8,klimaat:20,schuld:10,populariteit:-12},money:200,fb:'Boeren blokkeren snelwegen! 🚜',fbi:'🚜'},{lbl:'🐄 Subsidie groene boeren',txt:'Geld voor duurzamere productie.',efx:{economie:3,welzijn:5,klimaat:8,schuld:-10,populariteit:6},money:-200,fb:'Boeren blij! 🌾 Langzaam maar zeker beter.',fbi:'🌾'}]},
+  {id:4,cat:'📊 Economie',ico:'💼',tit:'Werkloosheids Wedstrijd 💼',bg:'#FFF8E1',desc:'Werkloosheid stijgt door automatisering.',c:[{lbl:'📈 Uitkering +25%',txt:'Direct hulp maar minder actief zoeken.',efx:{economie:-8,welzijn:12,klimaat:0,schuld:-12,populariteit:10},money:-250,fb:'Werklozen betalen hun huur! 🛋️',fbi:'🛋️'},{lbl:'📚 Omscholing',txt:'Gratis omscholing naar tech en groene banen.',efx:{economie:15,welzijn:5,klimaat:5,schuld:-8,populariteit:3},money:-150,fb:"Over 2 jaar zijn het IT'ers! 🎓",fbi:'🎓'}]},
+  {id:5,cat:'🏛️ Staatsschuld',ico:'✂️',tit:'Bezuinigings Blues ✂️',bg:'#EDE7F6',desc:'Staatsschuld te hoog. Hard bezuinigen of staatsloterij?',c:[{lbl:'✂️ Hard bezuinigen',txt:'€15 mrd bezuinigen op overheidskosten.',efx:{economie:5,welzijn:-15,klimaat:-8,schuld:25,populariteit:-18},money:600,fb:'Ambtenaren huilen! 📉 Financiële markten applaudisseren.',fbi:'📉'},{lbl:'🎰 Mega Staatsloterij',txt:'Nationale loterij. Leuk maar probleem blijft.',efx:{economie:3,welzijn:8,klimaat:0,schuld:5,populariteit:15},money:350,fb:'Heel Nederland koopt een lot! 🎰',fbi:'🤑'}]},
+  {id:6,cat:'🌍 Klimaat',ico:'⚛️',tit:'Kernenergie: Vriend of Vijand? ⚛️',bg:'#E0F7FA',desc:'Hernieuwbare energie onvoldoende.',c:[{lbl:'⚛️ Kerncentrale bouwen',txt:'Twee nieuwe centrales. Duur maar CO2-vrij.',efx:{economie:-10,welzijn:-5,klimaat:25,schuld:-20,populariteit:-10},money:-400,fb:'Demonstranten én klimaatactivisten marcheren! ☢️',fbi:'☢️'},{lbl:'💨 Meer windmolens',txt:'Windparken op zee. Populair!',efx:{economie:3,welzijn:5,klimaat:14,schuld:-8,populariteit:12},money:-100,fb:'Nederland: windmolenland 2.0! 🌬️',fbi:'🌬️'}]},
+  {id:7,cat:'💰 Belastingen',ico:'🤖',tit:'Robot-Belasting 🤖',bg:'#E8F5E9',desc:'Robots nemen banen over.',c:[{lbl:'🦾 Robot-taks',txt:'€50K per vervangen baan.',efx:{economie:-8,welzijn:12,klimaat:0,schuld:15,populariteit:10},money:300,fb:"Tech-CEO's woedend! 🦾 Arbeiders juichen.",fbi:'🦾'},{lbl:'🚀 Automatisering omarmen',txt:'Sta automatisering toe, investeer in onderwijs.',efx:{economie:18,welzijn:-8,klimaat:-5,schuld:5,populariteit:-5},money:200,fb:'Nederland tech-hub! 💻',fbi:'💻'}]},
+  {id:8,cat:'🏗️ Infrastructuur',ico:'🏗️',tit:'Infrastructuur Impasse 🏗️',bg:'#FFF8E1',desc:'Bruggen en wegen vervallen.',c:[{lbl:'🔨 Massief investeren',txt:'€30 mrd voor renovatie. Noodzakelijk.',efx:{economie:-10,welzijn:8,klimaat:3,schuld:-20,populariteit:12},money:-300,fb:'Bouwbedrijven draaien overuren! 🏗️',fbi:'🏗️'},{lbl:'🤝 Publiek-privaat',txt:'Bedrijven betalen mee.',efx:{economie:8,welzijn:3,klimaat:0,schuld:10,populariteit:2},money:100,fb:'Sneller maar tol op de snelweg. 🚗',fbi:'🛣️'}]},
+  {id:9,cat:'🌾 Landbouw',ico:'🌾',tit:'Stikstofdebat 🐄',bg:'#E8F5E9',desc:'Stikstofuitstoot te hoog.',c:[{lbl:'💰 Boerderijen uitkopen',txt:'Vrijwillige uitkoop. Duur maar effectief.',efx:{economie:-12,welzijn:5,klimaat:18,schuld:-18,populariteit:5},money:-400,fb:'Natuur herstelt! 🌿 Maar boerenzonen zijn boos.',fbi:'🌿'},{lbl:'📋 Strengere regels',txt:'Verplichte emissiereductie.',efx:{economie:-3,welzijn:-3,klimaat:8,schuld:5,populariteit:-10},money:-100,fb:'Boeren procederen massaal! ⚖️',fbi:'⚖️'}]},
+  {id:10,cat:'💼 Werkgelegenheid',ico:'💼',tit:'Flex-Werk Crisis 💼',bg:'#FFF8E1',desc:'Veel werknemers in onzekere flex-contracten.',c:[{lbl:'📜 Vast werk verplichten',txt:'Na 1 jaar vast contract verplicht.',efx:{economie:-8,welzijn:15,klimaat:0,schuld:0,populariteit:15},money:-150,fb:'Werknemers vieren feest! 🎉',fbi:'🎉'},{lbl:'🔄 Flexibiliteit bewaren',txt:'Markt regelt het zelf.',efx:{economie:10,welzijn:-10,klimaat:0,schuld:8,populariteit:-12},money:200,fb:'Economie groeit! 📈 Maar FNV organiseert staking.',fbi:'📈'}]},
+  {id:11,cat:'🏡 Woningmarkt',ico:'🏡',tit:'Woningnood Crisis 🏡',bg:'#FCE4EC',desc:'Jongeren kunnen geen huis vinden.',c:[{lbl:'🏗️ Massaal bouwen',txt:'150.000 woningen erbij.',efx:{economie:8,welzijn:10,klimaat:-15,schuld:-18,populariteit:8},money:-200,fb:'Starters juichen! 🎉 Activisten protesteren op Veluwe.',fbi:'🏗️'},{lbl:'🧊 Huurbevriezing',txt:'Huren mogen niet stijgen.',efx:{economie:-8,welzijn:12,klimaat:3,schuld:0,populariteit:10},money:-100,fb:'Huurders ademen! 😮‍💨 Maar bouw stopt.',fbi:'🧊'}]},
+  {id:12,cat:'🌍 Klimaat',ico:'🌍',tit:'Klimaatverdrag Dilemma 🌍',bg:'#E0F7FA',desc:'Nieuw internationaal klimaatverdrag.',c:[{lbl:'✍️ Verdrag tekenen',txt:'Strengere CO2-regels.',efx:{economie:-8,welzijn:5,klimaat:22,schuld:0,populariteit:5},money:-100,fb:'Nederland loopt voorop! 🌍 Industrie dreigt te vertrekken.',fbi:'🌱'},{lbl:'🙅 Niet tekenen',txt:'Industrie blijft maar gezichtsverlies.',efx:{economie:10,welzijn:-5,klimaat:-10,schuld:10,populariteit:-8},money:200,fb:'Industrie blij! 🏭 EU is woedend.',fbi:'😤'}]},
+  {id:13,cat:'🏥 GGZ',ico:'🧠',tit:'Mentale Gezondheidscrisis 🧠',bg:'#FCE4EC',desc:'Wachtlijsten GGZ zijn 2 jaar lang.',c:[{lbl:'💰 Massief investeren',txt:'€2 mrd extra voor GGZ.',efx:{economie:-10,welzijn:20,klimaat:0,schuld:-16,populariteit:14},money:-350,fb:'Wachtlijsten halveren in 18 maanden! 🧠',fbi:'❤️‍🩹'},{lbl:'📋 Verplichte dienst',txt:'Psychologen werken 3 jaar publiek.',efx:{economie:0,welzijn:8,klimaat:0,schuld:5,populariteit:-8},money:100,fb:'Meer capaciteit maar psychologen emigreren. 🇧🇪',fbi:'😬'}]},
+  {id:14,cat:'🚗 Mobiliteit',ico:'🚆',tit:'Mobiliteitsrevolutie 🚆',bg:'#FFF8E1',desc:'Files kosten miljarden. Gratis OV of rekeningrijden?',c:[{lbl:'🚆 Gratis OV',txt:'Openbaar vervoer gratis.',efx:{economie:-10,welzijn:15,klimaat:18,schuld:-18,populariteit:18},money:-350,fb:'NS-treinen overvol! CO2 daalt 12%. 🌿',fbi:'🚆'},{lbl:'🚗 Rekeningrijden',txt:'Betalen per kilometer.',efx:{economie:12,welzijn:-8,klimaat:10,schuld:15,populariteit:-15},money:400,fb:'Files halveren! 🚗 Automobilisten woest.',fbi:'🚗'}]},
+  {id:15,cat:'🎓 Onderwijs',ico:'🎓',tit:'Onderwijshervorming 🎓',bg:'#FFF8E1',desc:'Onderwijsniveau daalt, leraren vertrekken.',c:[{lbl:'💰 Leraren +25%',txt:'Betere beloning trekt docenten.',efx:{economie:-10,welzijn:12,klimaat:0,schuld:-14,populariteit:15},money:-300,fb:'Leraren stromen terug! 📚',fbi:'📚'},{lbl:'💻 Curriculum moderniseren',txt:'Meer technologie, minder klassieke vakken.',efx:{economie:8,welzijn:3,klimaat:3,schuld:5,populariteit:5},money:-100,fb:'Techbedrijven juichen! 💻',fbi:'💻'}]},
+  {id:16,cat:'⚖️ Justitie',ico:'⚖️',tit:'Rechtsstaat in Gevaar ⚖️',bg:'#EDE7F6',desc:'Rechtbanken overbelast, gevangenissen vol.',c:[{lbl:'⚖️ Meer rechters',txt:'500 extra rechters.',efx:{economie:-8,welzijn:10,klimaat:0,schuld:-12,populariteit:10},money:-250,fb:'Rechtszaken snel afgehandeld! ⚖️',fbi:'⚖️'},{lbl:'🏡 Alternatieve straffen',txt:'Taakstraffen en enkelbanden.',efx:{economie:5,welzijn:3,klimaat:2,schuld:8,populariteit:-5},money:150,fb:'Gevangenissen ontlasten! Slachtoffers niet gehoord.',fbi:'🏡'}]},
+  {id:17,cat:'🔬 Wetenschap',ico:'🔬',tit:'Wetenschap & Innovatie 🔬',bg:'#E0F7FA',desc:'Nederland zakt in wetenschapsranglijsten.',c:[{lbl:'🔬 Fundamenteel onderzoek',txt:'€5 mrd voor universiteiten.',efx:{economie:5,welzijn:5,klimaat:10,schuld:-15,populariteit:8},money:-200,fb:'Nederlandse nobelprijzen over 10 jaar! 🏆',fbi:'🏆'},{lbl:'🦄 Startups & innovatie',txt:'Subsidies voor startups.',efx:{economie:18,welzijn:3,klimaat:5,schuld:10,populariteit:10},money:100,fb:"Unicorns schieten op! 🦄",fbi:'🦄'}]},
+  {id:18,cat:'🛡️ Defensie',ico:'🛡️',tit:'Defensiebudget Debat 🛡️',bg:'#EDE7F6',desc:'NAVO eist 2% BNP voor defensie.',c:[{lbl:'🛡️ Budget naar 2%',txt:'Meer tanks en fregatten.',efx:{economie:-12,welzijn:-5,klimaat:-5,schuld:-20,populariteit:-5},money:-400,fb:'NAVO-partners tevreden! 🎖️ Maar scholen missen geld.',fbi:'🎖️'},{lbl:'🕊️ Diplomatie eerst',txt:'Minder wapens, meer onderhandelen.',efx:{economie:3,welzijn:8,klimaat:5,schuld:5,populariteit:10},money:100,fb:'Nederland wint VN Vredesprijs! 🕊️',fbi:'🕊️'}]},
+  {id:19,cat:'🚀 Innovatie',ico:'🚀',tit:'De Startup Natie 🦄',bg:'#E8F5E9',desc:'Talent stroomt weg naar Silicon Valley.',c:[{lbl:'🌍 Talent aantrekken',txt:'Belastingvoordelen voor techtalent.',efx:{economie:15,welzijn:3,klimaat:5,schuld:8,populariteit:5},money:200,fb:"Amsterdam wordt 'Silicon Polder'! 🌷",fbi:'🌷'},{lbl:'🎓 Lokaal talent koesteren',txt:'Extra investering in universiteiten.',efx:{economie:8,welzijn:10,klimaat:3,schuld:-10,populariteit:12},money:-200,fb:'Jonge Nederlanders blijven! 🎓',fbi:'🎓'}]},
+];
+
+const KANS=[
+  {i:'📰',t:'Positief persartikel!',txt:'NRC roept jou uit tot beste minister in decennia!',m:200,e:{populariteit:10}},
+  {i:'💥',t:'Schandaal!',txt:'Ambtenaar lekt dat je dure staatsvluchten maakt!',m:-300,e:{populariteit:-15}},
+  {i:'🎁',t:'EU-subsidie!',txt:'EU kent klimaatsubsidie toe dankzij jouw beleid.',m:400,e:{klimaat:8}},
+  {i:'⚡',t:'Energiecrisis!',txt:'Plotselinge energiecrisis treft Nederland.',m:-250,e:{economie:-8}},
+  {i:'🏆',t:'Internationale prijs!',txt:'Nederland wint Meest Duurzame Land prijs van de VN!',m:150,e:{klimaat:10,populariteit:8}},
+  {i:'📉',t:'Beurscrash!',txt:'Internationale beurscrash raakt ook Nederland.',m:-350,e:{economie:-12}},
+  {i:'🤝',t:'Coalitieakkoord!',txt:'Coalitie stemt unaniem in. Extra budget vrijgemaakt!',m:300,e:{populariteit:12}},
+  {i:'🌊',t:'Overstromingsrisico!',txt:'30% van Nederland dreigt te overstromen!',m:-200,e:{klimaat:-5,populariteit:-8}},
+  {i:'🎪',t:'Festival-economie!',txt:'Grote evenementen trekken toeristen.',m:250,e:{economie:5,populariteit:8}},
+  {i:'🦠',t:'Gezondheidcrisis!',txt:'Nieuwe variant zorgt voor zorgcrisis.',m:-300,e:{welzijn:-10}},
+  {i:'🤑',t:'Oliemeewind!',txt:'Olieprijzen stijgen. Bedrijven betalen meer belasting.',m:350,e:{economie:6}},
+  {i:'🏅',t:'Olympische spelen!',txt:'Nederland organiseert Olympische Spelen 2032!',m:400,e:{populariteit:10,economie:5}},
+];
+const KAS=[
+  {i:'🏦',t:'Staatskas stuurt geld!',txt:'Economie draait goed. Extra belastinginkomsten!',m:500,e:{schuld:10}},
+  {i:'💸',t:'Onverwachte tegenvaller!',txt:'Belastingfout kost de staat miljoenen.',m:-400,e:{schuld:-8}},
+  {i:'🎉',t:'Dividend staatsbedrijven!',txt:'KLM, NS en Gasunie keren dividend uit!',m:350,e:{economie:5}},
+  {i:'⚠️',t:'Pensioenfondscrisis!',txt:'Groot pensioenfonds vraagt staatssteun.',m:-300,e:{welzijn:-6}},
+  {i:'🌍',t:'Noodhulp buitenland',txt:'Ramp vraagt om Nederlandse hulp.',m:-200,e:{populariteit:8}},
+  {i:'🏠',t:'Woningverkoop winst!',txt:'Staat verkoopt overtollig vastgoed.',m:250,e:{schuld:6}},
+  {i:'💰',t:'Belastingmeevaller!',txt:'Meer mensen werken dan verwacht.',m:350,e:{economie:8}},
+  {i:'🏗️',t:'Private investering!',txt:'Investeerders bouwen gratis nieuwe scholen.',m:200,e:{welzijn:6,populariteit:5}},
+  {i:'🌱',t:'Groene subsidie!',txt:'Europees klimaatfonds keert dividend uit.',m:300,e:{klimaat:6}},
+  {i:'🚑',t:'Zorgkosten meevaller',txt:'Preventiebeleid werkt! Kosten vallen mee.',m:250,e:{welzijn:5,schuld:4}},
+];
+
+const MT={economie:{l:'Eco',i:'💰',c:'#2E7D32'},welzijn:{l:'Welz',i:'❤️',c:'#C62828'},klimaat:{l:'Klim',i:'🌿',c:'#006064'},schuld:{l:'Schuld',i:'🏛️',c:'#4A148C'},populariteit:{l:'Pop',i:'📣',c:'#E65100'}};
+const PAWNS=['🎩','👑','🎪','🚀'];
+const COLORS=['#1565C0','#C62828','#2E7D32','#7B1FA2'];
+const MEDALS=['🥇','🥈','🥉','🏅'];
+const VERDICTS=['Legendarische Staatsman!','Uitstekende Minister!','Redelijke Bestuurder','Rampminister 💥'];
+const cl=v=>Math.max(0,Math.min(100,Math.round(v)));
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let ably=null, channel=null;
+let ME={name:'',id:''};
+let ROOM={code:'',isHost:false};
+let waitPlayers=[];
+let G=null;
+
+const curP=()=>G?G.players[G.cur]:null;
+const isMe=p=>p&&p.id===ME.id;
+const iAmCur=()=>G&&curP()&&curP().id===ME.id;
+
+// ═══════════════════════════════════════════
+// LOBBY ACTIONS
+// ═══════════════════════════════════════════
+function createRoom(){
+  const name=document.getElementById('myName').value.trim();
+  if(!name){setErr('Voer eerst je naam in!');return;}
+  ME={name,id:rndId()};
+  const code=rndCode();
+  ROOM={code,isHost:true};
+  connectAbly(()=>enterChannel(code,true));
+}
+
+function joinRoom(){
+  const name=document.getElementById('myName').value.trim();
+  const code=document.getElementById('joinCode').value.trim().toUpperCase();
+  if(!name){setErr('Voer eerst je naam in!');return;}
+  if(code.length!==4){setErr('Kamercode moet 4 letters zijn!');return;}
+  ME={name,id:rndId()};
+  ROOM={code,isHost:false};
+  connectAbly(()=>enterChannel(code,false));
+}
+
+function leaveRoom(){
+  if(channel)pub('room:leave',{id:ME.id});
+  channel=null; waitPlayers=[];
+  showScreen('lobby');
+}
+
+function goLobby(){G=null;channel=null;showScreen('lobby');}
+
+function setErr(m){const e=document.getElementById('lobbyErr');e.textContent=m;setTimeout(()=>e.textContent='',3500);}
+function rndId(){return Math.random().toString(36).slice(2,10);}
+function rndCode(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ';return Array.from({length:4},()=>c[~~(Math.random()*c.length)]).join('');}
+
+// ═══════════════════════════════════════════
+// ABLY
+// ═══════════════════════════════════════════
+function connectAbly(cb){
+  try{
+    ably=new Ably.Realtime({key:ABLY_KEY,clientId:ME.id});
+    ably.connection.on('connected',()=>{setConn(true);cb();});
+    ably.connection.on('disconnected',()=>setConn(false));
+    ably.connection.on('failed',()=>{setConn(false);setErr('Verbinding mislukt. Controleer je API-key (ably.com).');});
+  }catch(e){setErr('Ably niet geladen. Controleer je internetverbinding.');}
+}
+
+function setConn(ok){const el=document.getElementById('connSt');el.textContent=ok?'🟢 Verbonden':'🔴 Offline';el.className='connstatus '+(ok?'cok':'cerr');}
+
+function enterChannel(code,hosting){
+  channel=ably.channels.get('politiekopoly-'+code);
+  channel.subscribe('room:join',  onJoin);
+  channel.subscribe('room:sync',  onSync);
+  channel.subscribe('room:leave', onLeave);
+  channel.subscribe('game:start', onStart);
+  channel.subscribe('game:state', onState);
+  channel.subscribe('game:action',onAction);
+  if(hosting){
+    waitPlayers=[{id:ME.id,name:ME.name,pawn:PAWNS[0],color:COLORS[0],isHost:true}];
+    showWaiting();
+    pub('room:sync',{players:waitPlayers,hostId:ME.id});
+  }else{
+    pub('room:join',{id:ME.id,name:ME.name});
+    showWaiting();
+  }
+}
+
+function pub(ev,data){if(channel)channel.publish(ev,data);}
+function sendAction(a){pub('game:action',a);}
+
+// ═══════════════════════════════════════════
+// ROOM EVENTS
+// ═══════════════════════════════════════════
+function onJoin(msg){
+  if(!ROOM.isHost)return;
+  const {id,name}=msg.data;
+  if(waitPlayers.find(p=>p.id===id))return;
+  if(waitPlayers.length>=4){pub('room:sync',{players:waitPlayers,hostId:ME.id,full:true});return;}
+  const idx=waitPlayers.length;
+  waitPlayers.push({id,name,pawn:PAWNS[idx],color:COLORS[idx],isHost:false});
+  pub('room:sync',{players:waitPlayers,hostId:ME.id});
+}
+
+function onSync(msg){
+  const{players,hostId,full}=msg.data;
+  if(full&&!players.find(p=>p.id===ME.id)){setErr('Kamer is vol!');showScreen('lobby');return;}
+  waitPlayers=players;
+  renderWaiting(hostId);
+}
+
+function onLeave(msg){
+  waitPlayers=waitPlayers.filter(p=>p.id!==msg.data.id);
+  renderWaiting();
+}
+
+function showWaiting(){
+  document.getElementById('roomCodeDisp').textContent=ROOM.code;
+  showScreen('waiting');
+  renderWaiting();
+}
+
+function renderWaiting(hostId){
+  document.getElementById('waitList').innerHTML=waitPlayers.map(p=>{
+    const me=p.id===ME.id?'<span class="pcbadge me">JIJ</span>':'';
+    const host=p.isHost&&p.id!==ME.id?'<span class="pcbadge">HOST</span>':'';
+    return `<div class="pcard"><div class="pcpawn">${p.pawn}</div><div class="pcname" style="color:${p.color}">${p.name}</div>${me}${host}</div>`;
+  }).join('');
+  document.getElementById('pCount').textContent=waitPlayers.length;
+  document.getElementById('startBtn').style.display=ROOM.isHost&&waitPlayers.length>=2?'block':'none';
+}
+
+function hostStart(){
+  if(!ROOM.isHost)return;
+  const state=makeState(waitPlayers);
+  pub('game:start',{state});
+}
+
+// ═══════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════
+function makeState(players){
+  return{
+    players:players.map(p=>({id:p.id,name:p.name,pawn:p.pawn,color:p.color,money:2000,pos:0,meters:{economie:60,welzijn:60,klimaat:50,schuld:55,populariteit:60}})),
+    cur:0,turn:0,maxTurns:12,usedPol:[],phase:'roll',
+    _dice:null,_cornMsg:null,_polCard:null,_kk:null,_feedback:null
+  };
+}
+
+function onStart(msg){
+  G=msg.data.state;
+  buildBoard();
+  renderHUD();
+  renderTokens();
+  updateBanner();
+  showScreen('game');
+  document.getElementById('roomPin').textContent='KAMER: '+ROOM.code;
+  toast(`🏛️ Spel begonnen! ${curP().pawn} ${curP().name} begint!`);
+  syncBtn();
+}
+
+function onState(msg){
+  applyState(msg.data.state);
+}
+
+function onAction(msg){
+  if(!ROOM.isHost)return;
+  processAction(msg.data);
+}
+
+// ═══════════════════════════════════════════
+// HOST: PROCESS & BROADCAST
+// ═══════════════════════════════════════════
+function processAction(a){
+  const p=curP();
+  if(a.type==='roll'){
+    if(G.phase!=='roll')return;
+    const v1=1+~~(Math.random()*6),v2=1+~~(Math.random()*6);
+    G._dice=[v1,v2];
+    G.phase='moving';
+    broadcast();
+    let step=0;
+    const iv=setInterval(()=>{
+      step++;
+      p.pos=(p.pos+1)%TOTAL;
+      if(p.pos===0&&step>1)p.money+=200;
+      if(step>=v1+v2){clearInterval(iv);G._dice=null;processLand(p.pos);}
+      else broadcast();
+    },175);
+  } else if(a.type==='choosePol'){
+    const card=POL.find(c=>c.id===a.polId);
+    if(!card)return;
+    const ch=card.c[a.choice];
+    p.money=Math.max(0,p.money+ch.money);
+    for(const[k,v] of Object.entries(ch.efx))p.meters[k]=cl(p.meters[k]+v);
+    G._feedback={fbi:ch.fbi,lbl:ch.lbl,fb:ch.fb,money:ch.money,efx:ch.efx};
+    G._polCard=null;
+    G.phase='feedback';
+    broadcast();
+  } else if(a.type==='closeFB'){
+    G._feedback=null;
+    advanceTurn();
+  } else if(a.type==='closeKK'){
+    G._kk=null;
+    advanceTurn();
+  }
+}
+
+function processLand(pos){
+  const sq=SQ[pos],p=curP();
+  switch(sq.t){
+    case 'corn':
+      if(sq.idx===0){p.money+=100;G._cornMsg=`🏁 ${p.name} landt op START! +€100`;}
+      else if(sq.idx===10){G._cornMsg=`🔒 ${p.name} bezoekt de gevangenis.`;}
+      else if(sq.idx===20){p.money+=300;G._cornMsg=`🌴 ${p.name} op staatsvakantie! +€300`;}
+      else if(sq.idx===30){p.money+=250;G._cornMsg=`🎰 ${p.name} pakt Gratis Parkeren! +€250`;}
+      G.phase='corner';broadcast();
+      setTimeout(()=>{G._cornMsg=null;advanceTurn();},1500);
+      break;
+    case 'spec':
+      p.money=Math.max(0,p.money-150);p.pos=10;
+      G._cornMsg=`🚓 ${p.name} naar gevangenis! -€150`;
+      G.phase='corner';broadcast();
+      setTimeout(()=>{G._cornMsg=null;advanceTurn();},1700);
+      break;
+    case 'pol':{
+      let av=POL.filter(c=>!G.usedPol.includes(c.id));
+      if(!av.length){G.usedPol=[];av=POL.slice();}
+      let card=sq.pi>=0?POL.find(c=>c.id===sq.pi):null;
+      if(!card||G.usedPol.includes(card.id))card=av[~~(Math.random()*av.length)];
+      G.usedPol.push(card.id);
+      G._polCard=card;G.phase='policy';broadcast();break;}
+    case 'kans':{
+      const card=KANS[~~(Math.random()*KANS.length)];
+      p.money=Math.max(0,p.money+card.m);
+      if(card.e)for(const[k,v]of Object.entries(card.e))p.meters[k]=cl(p.meters[k]+v);
+      G._kk={type:'kans',...card};G.phase='kk';broadcast();break;}
+    case 'kas':{
+      const card=KAS[~~(Math.random()*KAS.length)];
+      p.money=Math.max(0,p.money+card.m);
+      if(card.e)for(const[k,v]of Object.entries(card.e))p.meters[k]=cl(p.meters[k]+v);
+      G._kk={type:'kas',...card};G.phase='kk';broadcast();break;}
+    case 'tax':
+      p.money=Math.max(0,p.money-sq.tax);
+      G._cornMsg=`🧾 ${p.name} betaalt -€${sq.tax}`;
+      G.phase='corner';broadcast();
+      setTimeout(()=>{G._cornMsg=null;advanceTurn();},1300);break;
+    case 'bonus':{
+      const b={9:100,19:200,28:150,38:250}[sq.idx]||100;
+      p.money+=b;
+      G._cornMsg=`🎁 ${p.name} ontvangt +€${b}!`;
+      G.phase='corner';broadcast();
+      setTimeout(()=>{G._cornMsg=null;advanceTurn();},1300);break;}
+    default:advanceTurn();
+  }
+}
+
+function advanceTurn(){
+  G.turn++;
+  if(G.turn>=G.players.length*G.maxTurns){G.phase='ended';broadcast();return;}
+  G.cur=(G.cur+1)%G.players.length;
+  G.phase='roll';G._polCard=null;G._feedback=null;G._kk=null;G._cornMsg=null;
+  broadcast();
+}
+
+function broadcast(){
+  pub('game:state',{state:G});
+  applyState(G);
+}
+
+// ═══════════════════════════════════════════
+// APPLY STATE (all clients)
+// ═══════════════════════════════════════════
+function applyState(state){
+  G=state;
+  renderHUD();renderTokens();updateBanner();syncBtn();
+  if(G._dice){
+    const DF=['⚀','⚁','⚂','⚃','⚄','⚅'];
+    const d1=document.getElementById('d1'),d2=document.getElementById('d2');
+    d1.textContent=DF[G._dice[0]-1];d2.textContent=DF[G._dice[1]-1];
+    d1.classList.add('roll');d2.classList.add('roll');
+    setTimeout(()=>{d1.classList.remove('roll');d2.classList.remove('roll');},500);
+  }
+  if(G._cornMsg)toast(G._cornMsg);
+  // Policy
+  if(G.phase==='policy'&&G._polCard) showPolModal(G._polCard);
+  else document.getElementById('polOv').classList.remove('show');
+  // KK
+  if(G.phase==='kk'&&G._kk) showKKModal(G._kk);
+  else document.getElementById('kkOv').classList.remove('show');
+  // Feedback
+  if(G.phase==='feedback'&&G._feedback) showFBModal(G._feedback);
+  else document.getElementById('fbOv').classList.remove('show');
+  // Results
+  if(G.phase==='ended') showResults();
+}
+
+// ═══════════════════════════════════════════
+// ROLL BUTTON
+// ═══════════════════════════════════════════
+function rollDice(){
+  if(!iAmCur()||G.phase!=='roll')return;
+  sendAction({type:'roll'});
+}
+
+function syncBtn(){
+  const btn=document.getElementById('rollBtn');
+  if(!G){btn.disabled=true;return;}
+  const myTurn=iAmCur()&&G.phase==='roll';
+  btn.disabled=!myTurn;
+  btn.textContent=myTurn?'🎲 GOOI!':'⏳ Wachten...';
+}
+
+// ═══════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════
+function showPolModal(card){
+  const p=curP();
+  document.getElementById('polWho').textContent=`${p.pawn} ${p.name}`;
+  document.getElementById('polCat').textContent=card.cat;
+  document.getElementById('polIco').textContent=card.ico;
+  document.getElementById('polTit').textContent=card.tit;
+  document.getElementById('polDesc').textContent=card.desc;
+  document.getElementById('polHdr').style.background=card.bg;
+  const chs=document.getElementById('polChs');chs.innerHTML='';
+  if(iAmCur()){
+    card.c.forEach((c,i)=>{
+      const d=document.createElement('div');d.className='ch';
+      const bdg=Object.entries(c.efx).map(([k,v])=>`<span class="bg ${v>0?'bgp':'bgn'}">${MT[k].i}${v>0?'+':''}${v}</span>`).join('');
+      d.innerHTML=`<div class="clbl">${c.lbl}</div><div class="ctxt">${c.txt}</div><div class="bgs"><span class="bg ${c.money>=0?'bgp':'bgn'}">💶${c.money>=0?'+':''}€${c.money}</span>${bdg}</div>`;
+      d.onclick=()=>sendAction({type:'choosePol',polId:card.id,choice:i});
+      chs.appendChild(d);
+    });
+  }else{
+    chs.innerHTML=`<div class="waitingchoice"><span class="spinner"></span>${p.pawn} ${p.name} kiest een beleidskeuze...</div>`;
+  }
+  document.getElementById('polOv').classList.add('show');
+}
+
+function showKKModal(card){
+  const p=curP();
+  document.getElementById('kkWho').textContent=`${p.pawn} ${p.name}`;
+  document.getElementById('kkIco').textContent=card.i;
+  document.getElementById('kkTit').textContent=card.t;
+  document.getElementById('kkTxt').textContent=card.txt;
+  document.getElementById('kkHdr').className='mhdr '+(card.type==='kans'?'kh':'sh');
+  const km=document.getElementById('kkMon');
+  km.className='mcv '+(card.m>=0?'g':'l');
+  km.textContent=(card.m>=0?'+':'')+'€'+card.m.toLocaleString('nl');
+  document.getElementById('kkBtn').style.display=iAmCur()?'block':'none';
+  document.getElementById('kkOv').classList.add('show');
+}
+
+function showFBModal(fb){
+  document.getElementById('fbIco').textContent=fb.fbi;
+  document.getElementById('fbTit').textContent=fb.lbl;
+  document.getElementById('fbTxt').textContent=fb.fb;
+  const fm=document.getElementById('fbMon');
+  fm.className='mcv '+(fb.money>=0?'g':'l');
+  fm.textContent=(fb.money>=0?'+':'')+'€'+fb.money.toLocaleString('nl');
+  document.getElementById('fbChg').innerHTML=Object.entries(fb.efx).map(([k,v])=>{
+    const m=MT[k],col=v>0?m.c:'#C62828';
+    return `<div class="mc"><div>${m.i}</div><div class="mv" style="color:${col}">${v>0?'+':''}${v}</div><div style="font-size:8px;opacity:.5">${m.l}</div></div>`;
+  }).join('');
+  document.getElementById('fbBtn').style.display=iAmCur()?'block':'none';
+  document.getElementById('fbOv').classList.add('show');
+}
+
+// ═══════════════════════════════════════════
+// BUILD BOARD
+// ═══════════════════════════════════════════
+function buildBoard(){
+  const board=document.getElementById('board');
+  board.querySelectorAll('.sq').forEach(e=>e.remove());
+  SQ.forEach(sq=>{
+    const el=document.createElement('div');
+    el.className=sq.cls;el.id='sq'+sq.idx;
+    el.style.gridRow=sq.r;el.style.gridColumn=sq.c;
+    const bar=sq.col?`<div class="bar" style="background:${sq.col}"></div>`:'';
+    const nm=sq.nm.replace(/\n/g,'<br>');
+    if(sq.t==='corn')el.innerHTML=`<div class="ico">${sq.ico}</div><div class="nm">${nm}</div>`;
+    else if(sq.side==='lft'||sq.side==='rgt')el.innerHTML=`${bar}<div class="sin"><div class="ico">${sq.ico}</div><div class="nm">${nm}</div></div>`;
+    else el.innerHTML=`${bar}<div class="ico">${sq.ico}</div><div class="nm">${nm}</div>`;
+    const pt=document.createElement('div');pt.className='ptok';pt.id='pt'+sq.idx;
+    el.appendChild(pt);board.appendChild(el);
+  });
+}
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+function renderTokens(){
+  if(!G)return;
+  document.querySelectorAll('.ptok').forEach(e=>e.innerHTML='');
+  G.players.forEach(p=>{const pt=document.getElementById('pt'+p.pos);if(pt)pt.innerHTML+=`<span class="pt" style="color:${p.color}">${p.pawn}</span>`;});
+  document.querySelectorAll('.sq.hl').forEach(e=>e.classList.remove('hl','pop'));
+  const el=document.getElementById('sq'+curP().pos);
+  if(el){el.classList.add('hl');void el.offsetWidth;el.classList.add('pop');}
+}
+
+function renderHUD(){
+  if(!G)return;
+  const hud=document.getElementById('hud');
+  if(hud.children.length!==G.players.length){hud.innerHTML='';G.players.forEach((_,i)=>{const d=document.createElement('div');d.id='hp'+i;d.className='hudp';hud.appendChild(d);});}
+  G.players.forEach((p,i)=>{
+    const el=document.getElementById('hp'+i);if(!el)return;
+    el.className='hudp'+(i===G.cur?' cur':'')+(p.id===ME.id?' mep':'');
+    const ms=Object.entries(MT).map(([k,m])=>{const v=cl(p.meters[k]);const c=v<30?'#C62828':v<50?'#F9A825':m.c;return `<div class="hpm">${m.i}<div class="hpmb"><div class="hpmf" style="width:${v}%;background:${c}"></div></div></div>`;}).join('');
+    el.innerHTML=`<div class="hptop"><span class="hppawn">${p.pawn}</span><span class="hpname" style="color:${p.color}">${p.name}${p.id===ME.id?' ✦':''}</span><span class="hpmoney">€${p.money.toLocaleString('nl')}</span></div><div class="hpsub">Vakje ${p.pos+1}/40</div><div class="hpms">${ms}</div>`;
+  });
+}
+
+function updateBanner(){
+  if(!G)return;
+  const p=curP();
+  document.getElementById('cbanner').innerHTML=p.id===ME.id?`${p.pawn} <b>Jij bent aan de beurt!</b>`:`${p.pawn} <span style="color:${p.color}">${p.name}</span> is aan de beurt`;
+}
+
+// ═══════════════════════════════════════════
+// RESULTS
+// ═══════════════════════════════════════════
+function showResults(){
+  showScreen('results');
+  const sc=G.players.map(p=>({...p,score:Math.round(p.money/80+Object.values(p.meters).reduce((a,b)=>a+b,0)/5)})).sort((a,b)=>b.score-a.score);
+  document.getElementById('resBig').textContent=MEDALS[0];
+  document.getElementById('resTitle').textContent=`${sc[0].pawn} ${sc[0].name} wint!`;
+  document.getElementById('resSub').textContent=VERDICTS[0];
+  const lb=document.getElementById('lb');lb.innerHTML='';
+  sc.forEach((p,i)=>{
+    const ms=Object.entries(MT).map(([k,m])=>{const v=cl(p.meters[k]);const c=v<30?'#C62828':v<50?'#F9A825':m.c;return `<span class="lbm" style="color:${c}">${m.i}${v}</span>`;}).join('');
+    lb.innerHTML+=`<div class="lbrow" style="border-left:4px solid ${p.color}${p.id===ME.id?';background:#FFFDE7':''}">
+      <div class="lbmed">${MEDALS[i]||'🏅'}</div><div class="lbpawn">${p.pawn}</div>
+      <div class="lbinfo"><div class="lbname" style="color:${p.color}">${p.name}${p.id===ME.id?' ✦':''}</div><div class="lbv">${VERDICTS[Math.min(i,3)]}</div><div class="lbms">${ms}</div></div>
+      <div class="lbmoney">€${p.money.toLocaleString('nl')}</div></div>`;
+  });
+}
+
+// ═══════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════
+let toastT;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2800);}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+
+document.getElementById('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')joinRoom();});
+document.getElementById('myName').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('joinCode').focus();});
+document.getElementById('joinCode').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase();});
+</script>
+</body>
+</html>
